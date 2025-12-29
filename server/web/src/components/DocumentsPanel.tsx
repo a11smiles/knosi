@@ -130,27 +130,35 @@ export default function DocumentsPanel({ onDocumentsChanged }: Props) {
       {/* Upload Status */}
       {(uploading || uploadStatus) && (
         <div
-          className={`flex items-center gap-3 p-4 rounded-lg ${
+          className={`p-4 rounded-lg ${
             uploading
-              ? 'bg-slate-800'
+              ? 'bg-slate-800 border border-slate-700'
               : uploadStatus?.type === 'success'
               ? 'bg-green-900/30 border border-green-800'
               : 'bg-red-900/30 border border-red-800'
           }`}
         >
           {uploading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin text-primary-400" />
-              <span className="text-slate-300">Uploading {uploading}...</span>
-            </>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-5 h-5 animate-spin text-primary-400" />
+                <span className="text-slate-300 font-medium">Processing {uploading}</span>
+              </div>
+              <div className="text-sm text-slate-400 pl-8">
+                <div>📤 Upload → 📄 Extract → ✂️ Chunk → 🧠 Embed → 💾 Save</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  For large PDFs, check server logs for batch progress (docker compose logs -f api)
+                </div>
+              </div>
+            </div>
           ) : uploadStatus?.type === 'success' ? (
             <>
-              <CheckCircle className="w-5 h-5 text-green-400" />
+              <CheckCircle className="w-5 h-5 text-green-400 inline mr-3" />
               <span className="text-green-300">{uploadStatus.message}</span>
             </>
           ) : (
             <>
-              <AlertCircle className="w-5 h-5 text-red-400" />
+              <AlertCircle className="w-5 h-5 text-red-400 inline mr-3" />
               <span className="text-red-300">{uploadStatus?.message}</span>
             </>
           )}

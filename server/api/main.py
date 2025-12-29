@@ -254,7 +254,7 @@ async def extract_text_from_pdf_batch(content: bytes, filename: str, page_start:
         )
 
         usage = message.usage
-        print(f"PDF extraction batch (pages {page_start+1}-{page_end}): {usage.input_tokens} input, {usage.output_tokens} output tokens")
+        print(f"   📖 Pages {page_start+1}-{page_end}: {usage.input_tokens} input tokens, {usage.output_tokens} output tokens")
 
         return message.content[0].text
     except anthropic.BadRequestError as e:
@@ -272,7 +272,7 @@ async def extract_text_from_pdf(content: bytes, filename: str) -> str:
         raise HTTPException(status_code=500, detail="Claude API not configured")
 
     file_size_mb = len(content) / (1024 * 1024)
-    print(f"Processing PDF: {filename} ({file_size_mb:.1f}MB)")
+    print(f"📄 Processing PDF: {filename} ({file_size_mb:.1f}MB)")
 
     try:
         import io
@@ -285,30 +285,31 @@ async def extract_text_from_pdf(content: bytes, filename: str) -> str:
         # Get page count
         reader = PdfReader(io.BytesIO(content))
         total_pages = len(reader.pages)
-        print(f"PDF has {total_pages} pages")
+        print(f"📚 PDF has {total_pages} pages")
 
         # For large PDFs (>5MB) or many pages (>50), process in batches
         if file_size_mb > 5 or total_pages > 50:
-            print(f"Large PDF detected - processing in batches of 20 pages")
+            print(f"📑 Large PDF detected - splitting into batches of 20 pages each")
 
             BATCH_SIZE = 20
             extracted_parts = []
+            total_batches = (total_pages + BATCH_SIZE - 1) // BATCH_SIZE
 
-            for batch_start in range(0, total_pages, BATCH_SIZE):
+            for batch_num, batch_start in enumerate(range(0, total_pages, BATCH_SIZE), 1):
                 batch_end = min(batch_start + BATCH_SIZE, total_pages)
-                print(f"Extracting pages {batch_start+1}-{batch_end}...")
+                print(f"⚙️  Processing batch {batch_num}/{total_batches} (pages {batch_start+1}-{batch_end})...")
 
                 batch_text = await extract_text_from_pdf_batch(content, filename, batch_start, batch_end)
                 extracted_parts.append(batch_text)
 
             # Combine all batches
             full_text = "\n\n".join(extracted_parts)
-            print(f"Extracted {len(full_text)} characters from {total_pages} pages in {len(extracted_parts)} batches")
+            print(f"✅ Extraction complete: {len(full_text):,} characters from {total_pages} pages ({total_batches} batches)")
             return full_text
 
         else:
             # Small PDF - process in one go
-            print(f"Small PDF - processing all {total_pages} pages at once")
+            print(f"⚙️  Processing all {total_pages} pages in single request...")
             base64_pdf = base64.standard_b64encode(content).decode("utf-8")
 
             message = claude_client.messages.create(
@@ -334,10 +335,10 @@ async def extract_text_from_pdf(content: bytes, filename: str) -> str:
             )
 
             usage = message.usage
-            print(f"PDF extraction: {usage.input_tokens} input tokens, {usage.output_tokens} output tokens")
+            print(f"   📖 {usage.input_tokens} input tokens, {usage.output_tokens} output tokens")
 
             extracted_text = message.content[0].text
-            print(f"Extracted {len(extracted_text)} characters from {filename}")
+            print(f"✅ Extracted {len(extracted_text):,} characters")
             return extracted_text
 
     except anthropic.BadRequestError as e:
@@ -449,16 +450,20 @@ async def upload_document(
     # Use path if provided (from watcher), otherwise use filename
     filename = path or file.filename
     ext = Path(filename).suffix.lower()
-    
+
     if ext not in SUPPORTED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type: {ext}. Supported: {', '.join(SUPPORTED_EXTENSIONS)}"
         )
-    
+
+    print(f"📤 Upload started: {filename}")
+
     # Read file content
     content = await file.read()
     file_size = len(content)
+    file_size_mb = file_size / (1024 * 1024)
+    print(f"📦 File read: {file_size_mb:.1f}MB")
     
     if file_size > MAX_FILE_SIZE_MB * 1024 * 1024:
         raise HTTPException(
@@ -477,24 +482,31 @@ async def upload_document(
         return {"message": "Document already indexed", "filename": filename, "status": "unchanged"}
     
     # Extract text
+    print(f"📄 Extracting text from {filename}...")
     text = await extract_text(content, filename)
-    
+
     if not text.strip():
         raise HTTPException(status_code=400, detail="Could not extract text from document")
-    
+
+    print(f"✂️  Chunking text ({len(text)} characters)...")
     # Chunk text
     chunks = chunk_text(text)
-    
+    print(f"📊 Created {len(chunks)} chunks")
+
     # Generate embeddings
+    print(f"🧠 Generating embeddings for {len(chunks)} chunks...")
     embeddings = get_embeddings(chunks)
+    print(f"✅ Embeddings complete")
     
     # Remove old document if exists
     if existing_doc:
+        print(f"🔄 Updating existing document...")
         await session.execute(delete(Chunk).where(Chunk.document_id == existing_doc.id))
         await session.delete(existing_doc)
         await session.commit()
-    
+
     # Create new document (store original file for download)
+    print(f"💾 Saving to database...")
     doc = Document(
         filename=filename,
         file_hash=file_hash,
@@ -504,7 +516,7 @@ async def upload_document(
     )
     session.add(doc)
     await session.flush()
-    
+
     # Create chunks
     for i, (chunk_text_content, embedding) in enumerate(zip(chunks, embeddings)):
         chunk = Chunk(
@@ -515,9 +527,10 @@ async def upload_document(
             embedding=embedding
         )
         session.add(chunk)
-    
+
     await session.commit()
-    
+    print(f"✅ Upload complete: {filename} ({len(chunks)} chunks)")
+
     return {
         "message": "Document indexed successfully",
         "filename": filename,
