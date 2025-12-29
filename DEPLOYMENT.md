@@ -122,6 +122,10 @@ POSTGRES_DATA_PATH=/mnt/knosi-data/pgdata
 # Optional: Custom ports (defaults shown)
 API_PORT=48550
 WEB_PORT=48080
+
+# IMPORTANT: Server URL for web frontend
+# Replace with your server's public IP or domain
+SERVER_URL=http://your-server-ip
 ```
 
 **Save and exit** (Ctrl+X, then Y, then Enter)

@@ -48,7 +48,7 @@ services:
     ports:
       - "${WEB_PORT:-48080}:80"
     environment:
-      - VITE_API_URL=http://localhost:${API_PORT:-48550}
+      - VITE_API_URL=${SERVER_URL:-http://localhost}:${API_PORT:-48550}
     depends_on:
       - api
 
