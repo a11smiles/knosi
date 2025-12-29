@@ -75,6 +75,10 @@ sudo mount -a
 
 # Verify it mounted successfully
 df -h | grep knosi-data
+
+# Create subdirectory for PostgreSQL (avoids lost+found issue)
+sudo mkdir -p /mnt/knosi-data/pgdata
+sudo chown -R 999:999 /mnt/knosi-data/pgdata
 ```
 
 ---
@@ -112,7 +116,8 @@ API_SECRET_KEY=your-random-secret-key-here
 MAX_FILE_SIZE_MB=100
 
 # Optional: If using block storage (recommended)
-POSTGRES_DATA_PATH=/mnt/knosi-data
+# IMPORTANT: Use /pgdata subdirectory to avoid lost+found conflicts
+POSTGRES_DATA_PATH=/mnt/knosi-data/pgdata
 
 # Optional: Custom ports (defaults shown)
 API_PORT=48550
@@ -130,29 +135,29 @@ WEB_PORT=48080
 cd ~/knosi/server
 
 # Pull images and build containers
-sudo docker-compose build
+sudo docker compose build
 
 # Start services in detached mode
-sudo docker-compose up -d
+sudo docker compose up -d
 
 # Check container status
-sudo docker-compose ps
+sudo docker compose ps
 
 # You should see 3 containers: knosi-db, knosi-api, knosi-web
 # All should show "Up" status
 
 # View logs to verify startup
-sudo docker-compose logs -f
+sudo docker compose logs -f
 
 # Press Ctrl+C to exit logs when you see:
 # "Knosi API started - https://knosi.ai"
 # "Embedding model loaded"
 
 # If using block storage, verify PostgreSQL set correct permissions
-ls -ln /mnt/knosi-data
+ls -ln /mnt/knosi-data/pgdata
 # You should see UID 999 (postgres user in container)
 # If you see permission errors in logs, run:
-# sudo chown -R 999:999 /mnt/knosi-data
+# sudo chown -R 999:999 /mnt/knosi-data/pgdata
 # sudo docker-compose restart db
 ```
 

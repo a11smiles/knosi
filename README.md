@@ -69,8 +69,9 @@ nano .env  # Add your ANTHROPIC_API_KEY, POSTGRES_PASSWORD, API_SECRET_KEY
 # 2. Add to /etc/fstab for auto-mount on reboot:
 #    UUID=your-uuid  /mnt/knosi-data  ext4  defaults,nofail  0  2
 # 3. Mount: sudo mkdir -p /mnt/knosi-data && sudo mount -a
-# 4. Set ownership: sudo chown -R 999:999 /mnt/knosi-data
-# 5. Add to .env: POSTGRES_DATA_PATH=/mnt/knosi-data
+# 4. Create subdirectory: sudo mkdir -p /mnt/knosi-data/pgdata
+# 5. Set ownership: sudo chown -R 999:999 /mnt/knosi-data/pgdata
+# 6. Add to .env: POSTGRES_DATA_PATH=/mnt/knosi-data/pgdata
 
 # Start services
 docker compose up -d

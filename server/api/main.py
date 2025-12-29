@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import Column, String, DateTime, Integer, Text, select, delete, func
+from sqlalchemy import Column, String, DateTime, Integer, Text, select, delete, func, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
@@ -78,7 +78,7 @@ async def init_db():
     
     async with engine.begin() as conn:
         # Enable pgvector extension
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
 
