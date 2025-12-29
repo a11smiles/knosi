@@ -41,11 +41,18 @@ CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 EMBEDDING_DIM = 384  # Dimension for all-MiniLM-L6-v2
 
+# PDF processing configuration
+PDF_BATCH_SIZE = int(os.getenv("PDF_BATCH_SIZE", "20"))  # Pages per batch
+PDF_BATCHES_PER_MINUTE = int(os.getenv("PDF_BATCHES_PER_MINUTE", "60"))  # Rate limit (0 = no limit)
+
 # Supported file types
 SUPPORTED_EXTENSIONS = {".pdf", ".md", ".txt", ".org", ".rst", ".html", ".htm", ".docx"}
 
 # Progress tracking for uploads
 upload_progress = {}  # {upload_id: {"status": str, "filename": str, "queues": [asyncio.Queue]}}
+
+# Rate limiting for PDF batches
+last_batch_time = None
 
 # Database setup
 Base = declarative_base()
@@ -179,6 +186,27 @@ async def send_progress(upload_id: str, status: str):
                 await queue.put({"status": status, "filename": progress_data.get("filename", "")})
             except:
                 pass  # Queue might be closed
+
+
+async def rate_limit_batch():
+    """Rate limit PDF batch processing to avoid API rate limits"""
+    global last_batch_time
+
+    if PDF_BATCHES_PER_MINUTE <= 0:
+        return  # No rate limiting
+
+    min_interval = 60.0 / PDF_BATCHES_PER_MINUTE  # Seconds between batches
+
+    if last_batch_time is not None:
+        import time
+        elapsed = time.time() - last_batch_time
+        if elapsed < min_interval:
+            wait_time = min_interval - elapsed
+            log(f"   ⏸️  Rate limiting: waiting {wait_time:.1f}s before next batch...")
+            await asyncio.sleep(wait_time)
+
+    import time
+    last_batch_time = time.time()
 
 
 # Pydantic models
@@ -362,19 +390,24 @@ async def extract_text_from_pdf(content: bytes, filename: str, upload_id: Option
 
         # For large PDFs (>5MB) or many pages (>50), process in batches
         if file_size_mb > 5 or total_pages > 50:
-            log(f"📑 Large PDF detected - splitting into batches of 20 pages each")
+            log(f"📑 Large PDF detected - splitting into batches of {PDF_BATCH_SIZE} pages each")
+            if PDF_BATCHES_PER_MINUTE > 0:
+                log(f"⏱️  Rate limit: {PDF_BATCHES_PER_MINUTE} batches/minute")
 
-            BATCH_SIZE = 20
             extracted_parts = []
-            total_batches = (total_pages + BATCH_SIZE - 1) // BATCH_SIZE
+            total_batches = (total_pages + PDF_BATCH_SIZE - 1) // PDF_BATCH_SIZE
 
-            for batch_num, batch_start in enumerate(range(0, total_pages, BATCH_SIZE), 1):
-                batch_end = min(batch_start + BATCH_SIZE, total_pages)
+            for batch_num, batch_start in enumerate(range(0, total_pages, PDF_BATCH_SIZE), 1):
+                batch_end = min(batch_start + PDF_BATCH_SIZE, total_pages)
                 log(f"⚙️  Processing batch {batch_num}/{total_batches} (pages {batch_start+1}-{batch_end})...")
 
                 # Send progress update
                 if upload_id:
                     await send_progress(upload_id, f"Processing {filename}: Batch {batch_num}/{total_batches} (pages {batch_start+1}-{batch_end})...")
+
+                # Rate limit to avoid API limits
+                if batch_num > 1:  # Don't wait before first batch
+                    await rate_limit_batch()
 
                 batch_text = await extract_text_from_pdf_batch(content, filename, batch_start, batch_end)
                 extracted_parts.append(batch_text)
