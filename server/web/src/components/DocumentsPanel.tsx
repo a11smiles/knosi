@@ -10,7 +10,7 @@ export default function DocumentsPanel({ onDocumentsChanged }: Props) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -35,24 +35,49 @@ export default function DocumentsPanel({ onDocumentsChanged }: Props) {
     if (!files || files.length === 0) return;
 
     for (const file of Array.from(files)) {
-      setUploading(file.name);
+      setUploadProgress(`Uploading ${file.name}...`);
       setUploadStatus(null);
       try {
-        const result = await api.uploadFile(file);
-        setUploadStatus({
-          type: 'success',
-          message: `${file.name}: ${result.status} (${result.chunks} chunks)`,
+        const result = await api.uploadFile(file, undefined, (status: string) => {
+          // Handle progress updates from SSE
+          if (status.startsWith('complete:')) {
+            const message = status.substring(9); // Remove "complete:" prefix
+            setUploadProgress(null);
+            setUploadStatus({
+              type: 'success',
+              message,
+            });
+          } else if (status.startsWith('error:')) {
+            const message = status.substring(6); // Remove "error:" prefix
+            setUploadProgress(null);
+            setUploadStatus({
+              type: 'error',
+              message,
+            });
+          } else {
+            // Regular progress update
+            setUploadProgress(status);
+          }
         });
+
+        // Upload completed
+        if (!uploadStatus) { // Only update if not already set by SSE
+          setUploadStatus({
+            type: 'success',
+            message: `${file.name}: ${result.status} (${result.chunks} chunks)`,
+          });
+        }
         loadDocuments();
         onDocumentsChanged();
       } catch (err) {
+        setUploadProgress(null);
         setUploadStatus({
           type: 'error',
           message: `${file.name}: ${err instanceof Error ? err.message : 'Upload failed'}`,
         });
       }
     }
-    setUploading(null);
+    setUploadProgress(null);
   };
 
   const handleDelete = async (filename: string) => {
@@ -128,20 +153,20 @@ export default function DocumentsPanel({ onDocumentsChanged }: Props) {
       </div>
 
       {/* Upload Status */}
-      {(uploading || uploadStatus) && (
+      {(uploadProgress || uploadStatus) && (
         <div
           className={`p-4 rounded-lg ${
-            uploading
+            uploadProgress
               ? 'bg-slate-800 border border-slate-700'
               : uploadStatus?.type === 'success'
               ? 'bg-green-900/30 border border-green-800'
               : 'bg-red-900/30 border border-red-800'
           }`}
         >
-          {uploading ? (
+          {uploadProgress ? (
             <div className="flex items-center gap-3">
               <Loader2 className="w-5 h-5 animate-spin text-primary-400" />
-              <span className="text-slate-300">Uploading {uploading}...</span>
+              <span className="text-slate-300">{uploadProgress}</span>
             </div>
           ) : uploadStatus?.type === 'success' ? (
             <>

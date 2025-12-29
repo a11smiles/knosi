@@ -27,6 +27,9 @@ from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
 import anthropic
 from sentence_transformers import SentenceTransformer
+from sse_starlette.sse import EventSourceResponse
+import asyncio
+import uuid
 
 # Configuration
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
@@ -40,6 +43,9 @@ EMBEDDING_DIM = 384  # Dimension for all-MiniLM-L6-v2
 
 # Supported file types
 SUPPORTED_EXTENSIONS = {".pdf", ".md", ".txt", ".org", ".rst", ".html", ".htm", ".docx"}
+
+# Progress tracking for uploads
+upload_progress = {}  # {upload_id: {"status": str, "filename": str, "queues": [asyncio.Queue]}}
 
 # Database setup
 Base = declarative_base()
@@ -159,6 +165,20 @@ async def verify_api_key(x_api_key: Optional[str] = Header(None)):
     if not x_api_key or x_api_key != API_SECRET_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
     return True
+
+
+# Progress tracking helpers
+async def send_progress(upload_id: str, status: str):
+    """Send progress update to all connected SSE clients"""
+    if upload_id in upload_progress:
+        progress_data = upload_progress[upload_id]
+        progress_data["status"] = status
+        # Send to all queues
+        for queue in progress_data.get("queues", []):
+            try:
+                await queue.put({"status": status, "filename": progress_data.get("filename", "")})
+            except:
+                pass  # Queue might be closed
 
 
 # Pydantic models
@@ -305,7 +325,7 @@ async def extract_text_from_pdf_batch(content: bytes, filename: str, page_start:
         raise
 
 
-async def extract_text_from_pdf(content: bytes, filename: str) -> str:
+async def extract_text_from_pdf(content: bytes, filename: str, upload_id: Optional[str] = None) -> str:
     """Extract text from PDF using Claude's vision capability with batching for large files."""
     if not claude_client:
         raise HTTPException(status_code=500, detail="Claude API not configured")
@@ -351,6 +371,10 @@ async def extract_text_from_pdf(content: bytes, filename: str) -> str:
             for batch_num, batch_start in enumerate(range(0, total_pages, BATCH_SIZE), 1):
                 batch_end = min(batch_start + BATCH_SIZE, total_pages)
                 log(f"⚙️  Processing batch {batch_num}/{total_batches} (pages {batch_start+1}-{batch_end})...")
+
+                # Send progress update
+                if upload_id:
+                    await send_progress(upload_id, f"Processing {filename}: Batch {batch_num}/{total_batches} (pages {batch_start+1}-{batch_end})...")
 
                 batch_text = await extract_text_from_pdf_batch(content, filename, batch_start, batch_end)
                 extracted_parts.append(batch_text)
@@ -428,12 +452,12 @@ async def extract_text_from_docx(content: bytes) -> str:
     return '\n\n'.join(text_parts)
 
 
-async def extract_text(content: bytes, filename: str) -> str:
+async def extract_text(content: bytes, filename: str, upload_id: Optional[str] = None) -> str:
     """Extract text from file based on extension."""
     ext = Path(filename).suffix.lower()
-    
+
     if ext == '.pdf':
-        return await extract_text_from_pdf(content, filename)
+        return await extract_text_from_pdf(content, filename, upload_id)
     elif ext == '.docx':
         return await extract_text_from_docx(content)
     elif ext in {'.md', '.txt', '.org', '.rst', '.html', '.htm'}:
@@ -462,12 +486,65 @@ async def get_status(session: AsyncSession = Depends(get_session)):
     """Get server status and index statistics."""
     doc_count = await session.scalar(select(func.count(Document.id)))
     chunk_count = await session.scalar(select(func.count(Chunk.id)))
-    
+
     return StatusResponse(
         status="ok",
         document_count=doc_count or 0,
         chunk_count=chunk_count or 0
     )
+
+
+@app.get("/api/upload/{upload_id}/progress")
+async def upload_progress_stream(
+    upload_id: str,
+    api_key: Optional[str] = Query(None),
+    x_api_key: Optional[str] = Header(None)
+):
+    """Stream upload progress updates via Server-Sent Events"""
+    # Check API key from query param or header
+    if API_SECRET_KEY != "change-me-in-production":
+        provided_key = api_key or x_api_key
+        if not provided_key or provided_key != API_SECRET_KEY:
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+    async def event_generator():
+        # Create a queue for this client
+        queue = asyncio.Queue()
+
+        # Register this queue
+        if upload_id not in upload_progress:
+            upload_progress[upload_id] = {"status": "waiting", "filename": "", "queues": []}
+        upload_progress[upload_id]["queues"].append(queue)
+
+        try:
+            while True:
+                # Wait for progress update
+                data = await asyncio.wait_for(queue.get(), timeout=30.0)
+
+                # Send the update
+                yield {
+                    "event": "progress",
+                    "data": f"{data['status']}"
+                }
+
+                # If done, close the connection
+                if data['status'].startswith('complete:') or data['status'].startswith('error:'):
+                    break
+
+        except asyncio.TimeoutError:
+            # Send keepalive
+            yield {"event": "ping", "data": ""}
+        except Exception as e:
+            log(f"SSE error for upload {upload_id}: {e}")
+        finally:
+            # Cleanup
+            if upload_id in upload_progress:
+                try:
+                    upload_progress[upload_id]["queues"].remove(queue)
+                except ValueError:
+                    pass
+
+    return EventSourceResponse(event_generator())
 
 
 @app.get("/api/documents", response_model=List[DocumentInfo])
@@ -496,22 +573,32 @@ async def list_documents(
 async def upload_document(
     file: UploadFile = File(...),
     path: Optional[str] = Form(None),
+    upload_id: Optional[str] = Form(None),
     session: AsyncSession = Depends(get_session),
     _: bool = Depends(verify_api_key)
 ):
     """Upload and index a document."""
+    # Generate upload_id if not provided
+    if not upload_id:
+        upload_id = str(uuid.uuid4())
+
     try:
-        log(f"DEBUG: Upload endpoint called")
+        log(f"DEBUG: Upload endpoint called, upload_id={upload_id}")
         log(f"DEBUG: file.filename={file.filename}, path={path}")
 
         # Use path if provided (from watcher), otherwise use filename
         filename = path or file.filename
         log(f"DEBUG: Using filename={filename}")
 
+        # Initialize progress tracking
+        upload_progress[upload_id] = {"status": f"Uploading {filename}...", "filename": filename, "queues": []}
+        await send_progress(upload_id, f"Uploading {filename}...")
+
         ext = Path(filename).suffix.lower()
         log(f"DEBUG: File extension={ext}")
 
         if ext not in SUPPORTED_EXTENSIONS:
+            await send_progress(upload_id, f"error:Unsupported file type: {ext}")
             raise HTTPException(
                 status_code=400,
                 detail=f"Unsupported file type: {ext}. Supported: {', '.join(SUPPORTED_EXTENSIONS)}"
@@ -527,13 +614,14 @@ async def upload_document(
         log(f"📦 File read: {file_size_mb:.1f}MB")
 
         if file_size > MAX_FILE_SIZE_MB * 1024 * 1024:
+            await send_progress(upload_id, f"error:File too large")
             raise HTTPException(
                 status_code=400,
                 detail=f"File too large. Max size: {MAX_FILE_SIZE_MB}MB"
             )
 
         # Check if already indexed with same hash
-        print(f"DEBUG: Computing file hash", flush=True)
+        log(f"DEBUG: Computing file hash")
         file_hash = compute_file_hash(content)
         existing = await session.execute(
             select(Document).where(Document.filename == filename)
@@ -541,34 +629,40 @@ async def upload_document(
         existing_doc = existing.scalar_one_or_none()
 
         if existing_doc and existing_doc.file_hash == file_hash:
-            return {"message": "Document already indexed", "filename": filename, "status": "unchanged"}
+            await send_progress(upload_id, f"complete:Already indexed")
+            return {"message": "Document already indexed", "filename": filename, "status": "unchanged", "upload_id": upload_id}
 
         # Extract text
-        print(f"📄 Extracting text from {filename}...", flush=True)
-        text = await extract_text(content, filename)
+        await send_progress(upload_id, f"Extracting text from {filename}...")
+        log(f"📄 Extracting text from {filename}...")
+        text = await extract_text(content, filename, upload_id)
 
         if not text.strip():
+            await send_progress(upload_id, f"error:Could not extract text")
             raise HTTPException(status_code=400, detail="Could not extract text from document")
 
-        print(f"✂️  Chunking text ({len(text)} characters)...", flush=True)
+        await send_progress(upload_id, f"Chunking text from {filename}...")
+        log(f"✂️  Chunking text ({len(text)} characters)...")
         # Chunk text
         chunks = chunk_text(text)
-        print(f"📊 Created {len(chunks)} chunks", flush=True)
+        log(f"📊 Created {len(chunks)} chunks")
 
         # Generate embeddings
-        print(f"🧠 Generating embeddings for {len(chunks)} chunks...", flush=True)
+        await send_progress(upload_id, f"Generating embeddings for {filename}...")
+        log(f"🧠 Generating embeddings for {len(chunks)} chunks...")
         embeddings = get_embeddings(chunks)
-        print(f"✅ Embeddings complete", flush=True)
+        log(f"✅ Embeddings complete")
 
         # Remove old document if exists
         if existing_doc:
-            print(f"🔄 Updating existing document...", flush=True)
+            log(f"🔄 Updating existing document...")
             await session.execute(delete(Chunk).where(Chunk.document_id == existing_doc.id))
             await session.delete(existing_doc)
             await session.commit()
 
         # Create new document (store original file for download)
-        print(f"💾 Saving to database...", flush=True)
+        await send_progress(upload_id, f"Saving {filename}...")
+        log(f"💾 Saving to database...")
         doc = Document(
             filename=filename,
             file_hash=file_hash,
@@ -591,20 +685,28 @@ async def upload_document(
             session.add(chunk)
 
         await session.commit()
-        print(f"✅ Upload complete: {filename} ({len(chunks)} chunks)", flush=True)
+        log(f"✅ Upload complete: {filename} ({len(chunks)} chunks)")
+
+        await send_progress(upload_id, f"complete:{filename} indexed successfully ({len(chunks)} chunks)")
 
         return {
             "message": "Document indexed successfully",
             "filename": filename,
             "chunks": len(chunks),
-            "status": "updated" if existing_doc else "created"
+            "status": "updated" if existing_doc else "created",
+            "upload_id": upload_id
         }
 
-    except HTTPException:
+    except HTTPException as e:
+        # Send error to progress stream if not already sent
+        if upload_id in upload_progress:
+            await send_progress(upload_id, f"error:{e.detail}")
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        print(f"FATAL ERROR in upload_document: {type(e).__name__}: {str(e)}", flush=True)
+        log(f"FATAL ERROR in upload_document: {type(e).__name__}: {str(e)}")
+        if upload_id in upload_progress:
+            await send_progress(upload_id, f"error:Upload failed: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")

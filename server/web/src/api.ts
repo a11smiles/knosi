@@ -70,9 +70,22 @@ class ApiClient {
     return response.json();
   }
 
-  async uploadFile(file: File, path?: string): Promise<{ message: string; filename: string; chunks: number; status: string }> {
+  async uploadFile(
+    file: File,
+    path?: string,
+    onProgress?: (status: string) => void
+  ): Promise<{ message: string; filename: string; chunks: number; status: string; upload_id: string }> {
+    // Generate upload ID
+    const uploadId = crypto.randomUUID();
+
+    // If progress callback provided, start listening to SSE
+    if (onProgress) {
+      this.subscribeToUploadProgress(uploadId, onProgress);
+    }
+
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('upload_id', uploadId);
     if (path) {
       formData.append('path', path);
     }
@@ -88,6 +101,31 @@ class ApiClient {
       throw new Error(error.detail || 'Upload failed');
     }
     return response.json();
+  }
+
+  private subscribeToUploadProgress(uploadId: string, onProgress: (status: string) => void) {
+    const apiKey = this.getApiKey();
+    const url = new URL(`${API_URL}/api/upload/${uploadId}/progress`);
+
+    // EventSource doesn't support custom headers, so pass API key as query param
+    if (apiKey) {
+      url.searchParams.append('api_key', apiKey);
+    }
+
+    const eventSource = new EventSource(url.toString());
+
+    eventSource.addEventListener('progress', (event) => {
+      onProgress(event.data);
+
+      // Close connection if done
+      if (event.data.startsWith('complete:') || event.data.startsWith('error:')) {
+        eventSource.close();
+      }
+    });
+
+    eventSource.addEventListener('error', () => {
+      eventSource.close();
+    });
   }
 
   async deleteDocument(filename: string): Promise<void> {
