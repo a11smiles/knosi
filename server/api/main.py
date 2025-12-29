@@ -44,10 +44,8 @@ EMBEDDING_DIM = 384  # Dimension for all-MiniLM-L6-v2
 # PDF processing configuration
 PDF_BATCH_SIZE = int(os.getenv("PDF_BATCH_SIZE", "20"))  # Pages per batch
 PDF_BATCHES_PER_MINUTE = int(os.getenv("PDF_BATCHES_PER_MINUTE", "60"))  # Rate limit (0 = no limit)
-
-# TEMPORARY: Limit number of batches for testing to avoid long waits
-# TODO: REMOVE THIS LIMIT - This is only for testing rate limiting without waiting 45 minutes
-PDF_MAX_BATCHES_FOR_TESTING = 5  # Set to None to disable limit
+# Optional: Limit number of batches for testing (useful to avoid long waits during testing)
+PDF_MAX_BATCHES = int(os.getenv("PDF_MAX_BATCHES", "0")) if os.getenv("PDF_MAX_BATCHES") else None
 
 # Supported file types
 SUPPORTED_EXTENSIONS = {".pdf", ".md", ".txt", ".org", ".rst", ".html", ".htm", ".docx"}
@@ -401,19 +399,17 @@ async def extract_text_from_pdf(content: bytes, filename: str, upload_id: Option
             extracted_parts = []
             total_batches = (total_pages + PDF_BATCH_SIZE - 1) // PDF_BATCH_SIZE
 
-            # TEMPORARY: Limit batches for testing
-            # TODO: REMOVE THIS - Only for testing to avoid waiting 45 minutes
-            if PDF_MAX_BATCHES_FOR_TESTING is not None and total_batches > PDF_MAX_BATCHES_FOR_TESTING:
-                log(f"⚠️  TESTING MODE: Limiting to {PDF_MAX_BATCHES_FOR_TESTING} batches (out of {total_batches})")
-                batches_to_process = PDF_MAX_BATCHES_FOR_TESTING
+            # Optional: Limit batches for testing
+            if PDF_MAX_BATCHES is not None and PDF_MAX_BATCHES > 0 and total_batches > PDF_MAX_BATCHES:
+                log(f"⚠️  Batch limit enabled: Processing {PDF_MAX_BATCHES} batches (out of {total_batches})")
+                batches_to_process = PDF_MAX_BATCHES
             else:
                 batches_to_process = total_batches
 
             for batch_num, batch_start in enumerate(range(0, total_pages, PDF_BATCH_SIZE), 1):
-                # TEMPORARY: Stop after configured number of batches
-                # TODO: REMOVE THIS CHECK
+                # Stop after configured number of batches
                 if batch_num > batches_to_process:
-                    log(f"⚠️  TESTING MODE: Stopped after {batches_to_process} batches")
+                    log(f"⚠️  Stopped after {batches_to_process} batches (PDF_MAX_BATCHES limit)")
                     break
 
                 batch_end = min(batch_start + PDF_BATCH_SIZE, total_pages)
