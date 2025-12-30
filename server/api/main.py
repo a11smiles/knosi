@@ -151,7 +151,7 @@ async def upload_progress_stream(
                 except ValueError:
                     pass
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), ping=5)
 
 
 @app.get("/api/documents", response_model=List[DocumentInfo])
