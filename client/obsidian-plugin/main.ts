@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, TAbstractFile, requestUrl } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, TAbstractFile, requestUrl, ItemView, WorkspaceLeaf } from 'obsidian';
 
 interface KnosiSettings {
 	serverUrl: string;
@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS: KnosiSettings = {
 	verboseLogging: false
 };
 
+const KNOSI_CHAT_VIEW = 'knosi-chat-view';
+
 export default class KnosiSyncPlugin extends Plugin {
 	settings: KnosiSettings;
 	statusBarItem: HTMLElement;
@@ -34,6 +36,12 @@ export default class KnosiSyncPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+
+		// Register chat view
+		this.registerView(
+			KNOSI_CHAT_VIEW,
+			(leaf) => new KnosiChatView(leaf, this)
+		);
 
 		// Status bar
 		this.statusBarItem = this.addStatusBarItem();
@@ -70,6 +78,17 @@ export default class KnosiSyncPlugin extends Plugin {
 			callback: () => this.viewQueue()
 		});
 
+		this.addCommand({
+			id: 'open-chat',
+			name: 'Open chat',
+			callback: () => this.activateChatView()
+		});
+
+		// Ribbon icon to open chat
+		this.addRibbonIcon('message-square', 'Knosi Chat', () => {
+			this.activateChatView();
+		});
+
 		// Settings tab
 		this.addSettingTab(new KnosiSettingTab(this.app, this));
 
@@ -100,7 +119,7 @@ export default class KnosiSyncPlugin extends Plugin {
 			}
 		}, 5000); // 5 second delay to let Obsidian fully load
 
-		console.log('Knosi Sync plugin loaded');
+		console.log('Knosi plugin loaded');
 	}
 
 	onunload() {
@@ -599,6 +618,27 @@ export default class KnosiSyncPlugin extends Plugin {
 		new Notice(`Sync complete: ${synced} files synced${errors > 0 ? `, ${errors} errors` : ''}`);
 	}
 
+	async activateChatView() {
+		const { workspace } = this.app;
+
+		let leaf: WorkspaceLeaf | null = null;
+		const leaves = workspace.getLeavesOfType(KNOSI_CHAT_VIEW);
+
+		if (leaves.length > 0) {
+			// Chat view already open, focus it
+			leaf = leaves[0];
+		} else {
+			// Open chat view in right sidebar
+			leaf = workspace.getRightLeaf(false);
+			await leaf?.setViewState({ type: KNOSI_CHAT_VIEW, active: true });
+		}
+
+		// Reveal the leaf
+		if (leaf) {
+			workspace.revealLeaf(leaf);
+		}
+	}
+
 	async checkServerStatus() {
 		try {
 			const response = await fetch(`${this.settings.serverUrl}/api/status`, {
@@ -621,6 +661,159 @@ export default class KnosiSyncPlugin extends Plugin {
 
 		} catch (error) {
 			new Notice(`❌ Cannot connect to server: ${error.message}`);
+		}
+	}
+}
+
+class KnosiChatView extends ItemView {
+	plugin: KnosiSyncPlugin;
+	chatContainer: HTMLElement;
+	messagesContainer: HTMLElement;
+	inputContainer: HTMLElement;
+	inputEl: HTMLTextAreaElement;
+	sendButton: HTMLButtonElement;
+
+	constructor(leaf: WorkspaceLeaf, plugin: KnosiSyncPlugin) {
+		super(leaf);
+		this.plugin = plugin;
+	}
+
+	getViewType() {
+		return KNOSI_CHAT_VIEW;
+	}
+
+	getDisplayText() {
+		return 'Knosi Chat';
+	}
+
+	getIcon() {
+		return 'message-square';
+	}
+
+	async onOpen() {
+		const container = this.containerEl.children[1];
+		container.empty();
+		container.addClass('knosi-chat-container');
+
+		// Header
+		const header = container.createEl('div', { cls: 'knosi-chat-header' });
+		header.createEl('h4', { text: 'Chat with your documents' });
+
+		// Messages container (scrollable)
+		this.messagesContainer = container.createEl('div', { cls: 'knosi-chat-messages' });
+
+		// Input container
+		this.inputContainer = container.createEl('div', { cls: 'knosi-chat-input-container' });
+
+		this.inputEl = this.inputContainer.createEl('textarea', {
+			cls: 'knosi-chat-input',
+			attr: {
+				placeholder: 'Ask a question about your documents...',
+				rows: '3'
+			}
+		});
+
+		this.sendButton = this.inputContainer.createEl('button', {
+			cls: 'knosi-chat-send-button',
+			text: 'Send'
+		});
+
+		// Event listeners
+		this.sendButton.addEventListener('click', () => this.sendMessage());
+		this.inputEl.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+				e.preventDefault();
+				this.sendMessage();
+			}
+		});
+
+		// Add welcome message
+		this.addMessage('assistant', 'Hello! Ask me anything about your documents. I\'ll search through your knowledge base and provide answers with sources.');
+	}
+
+	async onClose() {
+		// Cleanup
+	}
+
+	addMessage(role: 'user' | 'assistant', content: string, sources?: Array<{filename: string, chunk_index: number}>) {
+		const messageEl = this.messagesContainer.createEl('div', {
+			cls: `knosi-chat-message knosi-chat-message-${role}`
+		});
+
+		const contentEl = messageEl.createEl('div', { cls: 'knosi-chat-message-content' });
+
+		// Simple markdown rendering - just handle line breaks
+		const lines = content.split('\n');
+		lines.forEach((line, index) => {
+			if (index > 0) contentEl.createEl('br');
+
+			// Handle bold markdown
+			const parts = line.split(/\*\*(.+?)\*\*/g);
+			parts.forEach((part, i) => {
+				if (i % 2 === 1) {
+					contentEl.createEl('strong', { text: part });
+				} else if (part) {
+					contentEl.appendText(part);
+				}
+			});
+		});
+
+		// Add sources if provided
+		if (sources && sources.length > 0) {
+			const sourcesEl = messageEl.createEl('div', { cls: 'knosi-chat-sources' });
+			sourcesEl.createEl('strong', { text: 'Sources: ' });
+			sources.forEach((source, index) => {
+				if (index > 0) sourcesEl.appendText(', ');
+				sourcesEl.appendText(source.filename);
+			});
+		}
+
+		// Scroll to bottom
+		this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+	}
+
+	async sendMessage() {
+		const message = this.inputEl.value.trim();
+		if (!message) return;
+
+		// Clear input
+		this.inputEl.value = '';
+
+		// Add user message
+		this.addMessage('user', message);
+
+		// Show loading indicator
+		const loadingEl = this.messagesContainer.createEl('div', {
+			cls: 'knosi-chat-message knosi-chat-message-assistant knosi-chat-loading'
+		});
+		loadingEl.createEl('div', { cls: 'knosi-chat-message-content', text: 'Thinking...' });
+
+		try {
+			const response = await fetch(`${this.plugin.settings.serverUrl}/api/chat`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-API-Key': this.plugin.settings.apiKey
+				},
+				body: JSON.stringify({ message })
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+
+			const data = await response.json();
+
+			// Remove loading indicator
+			loadingEl.remove();
+
+			// Add assistant response
+			this.addMessage('assistant', data.response, data.sources);
+
+		} catch (error) {
+			loadingEl.remove();
+			this.addMessage('assistant', `Error: ${error.message}`);
+			console.error('Chat error:', error);
 		}
 	}
 }

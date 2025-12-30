@@ -1,0 +1,108 @@
+/* Knosi Chat Styles */
+
+.knosi-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 10px;
+}
+
+.knosi-chat-header {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.knosi-chat-header h4 {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.knosi-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 15px;
+  padding-right: 5px;
+}
+
+.knosi-chat-message {
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: 6px;
+  max-width: 90%;
+}
+
+.knosi-chat-message-user {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.knosi-chat-message-assistant {
+  background-color: var(--background-secondary);
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.knosi-chat-message-content {
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.knosi-chat-sources {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+
+.knosi-chat-loading .knosi-chat-message-content {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.knosi-chat-input-container {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.knosi-chat-input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  resize: vertical;
+  min-height: 60px;
+  font-family: var(--font-text);
+  font-size: var(--font-ui-medium);
+}
+
+.knosi-chat-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+
+.knosi-chat-send-button {
+  padding: 8px 16px;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.knosi-chat-send-button:hover {
+  opacity: 0.9;
+}
+
+.knosi-chat-send-button:active {
+  opacity: 0.8;
+}
