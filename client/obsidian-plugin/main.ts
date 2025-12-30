@@ -32,6 +32,7 @@ export default class KnosiSyncPlugin extends Plugin {
 	// Queue-based sync
 	pendingUploads: Set<string> = new Set();      // Files to upload
 	pendingDeletes: Set<string> = new Set();      // Files to delete
+	currentlyProcessing: Set<string> = new Set(); // Files being processed right now
 	syncIntervalId: number | null = null;
 
 	async onload() {
@@ -407,12 +408,13 @@ export default class KnosiSyncPlugin extends Plugin {
 
 		const uploadsToProcess = new Set(this.pendingUploads);
 		const deletesToProcess = new Set(this.pendingDeletes);
-		
+
 		if (uploadsToProcess.size === 0 && deletesToProcess.size === 0) {
 			return; // Nothing to do
 		}
 
 		this.syncInProgress = true;
+		this.currentlyProcessing = new Set([...uploadsToProcess, ...deletesToProcess]);
 		this.updateStatusBar('syncing', `${uploadsToProcess.size} files`);
 
 		if (this.settings.verboseLogging) {
@@ -428,9 +430,11 @@ export default class KnosiSyncPlugin extends Plugin {
 			try {
 				await this.deleteFileByPath(path);
 				this.pendingDeletes.delete(path);
+				this.currentlyProcessing.delete(path);
 				deleted++;
 			} catch {
 				errors++;
+				this.currentlyProcessing.delete(path);
 			}
 		}
 
@@ -441,18 +445,22 @@ export default class KnosiSyncPlugin extends Plugin {
 				try {
 					await this.uploadFile(file);
 					this.pendingUploads.delete(path);
+					this.currentlyProcessing.delete(path);
 					uploaded++;
 				} catch {
 					errors++;
+					this.currentlyProcessing.delete(path);
 					// Keep in queue for retry
 				}
 			} else {
 				// File no longer exists, remove from queue
 				this.pendingUploads.delete(path);
+				this.currentlyProcessing.delete(path);
 			}
 		}
 
 		this.syncInProgress = false;
+		this.currentlyProcessing.clear();
 		
 		if (errors > 0) {
 			this.updateStatusBar('error', `${errors} failed`);
@@ -476,19 +484,28 @@ export default class KnosiSyncPlugin extends Plugin {
 	}
 
 	viewQueue() {
+		const processing = Array.from(this.currentlyProcessing);
 		const uploads = Array.from(this.pendingUploads);
 		const deletes = Array.from(this.pendingDeletes);
-		
-		if (uploads.length === 0 && deletes.length === 0) {
+
+		if (processing.length === 0 && uploads.length === 0 && deletes.length === 0) {
 			new Notice('Sync queue is empty');
 			return;
 		}
 
 		let message = '';
+
+		if (processing.length > 0) {
+			message += `⏳ Currently processing (${processing.length}):\n${processing.slice(0, 10).join('\n')}`;
+			if (processing.length > 10) message += `\n...and ${processing.length - 10} more`;
+		}
+
 		if (uploads.length > 0) {
+			if (message) message += '\n\n';
 			message += `📤 Pending uploads (${uploads.length}):\n${uploads.slice(0, 10).join('\n')}`;
 			if (uploads.length > 10) message += `\n...and ${uploads.length - 10} more`;
 		}
+
 		if (deletes.length > 0) {
 			if (message) message += '\n\n';
 			message += `🗑️ Pending deletes (${deletes.length}):\n${deletes.slice(0, 10).join('\n')}`;
