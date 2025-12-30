@@ -27,7 +27,7 @@ async def search_similar_chunks(
         List of tuples: (filename, content, chunk_index)
     """
     # Generate embedding for query
-    query_embedding = get_embeddings([query])[0]
+    query_embedding = (await get_embeddings([query]))[0]
 
     # Search for relevant chunks using pgvector
     result = await session.execute(

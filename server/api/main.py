@@ -275,7 +275,7 @@ async def upload_document(
         # Generate embeddings
         await send_progress(upload_id, f"Generating embeddings for {filename}...")
         log(f"🧠 Generating embeddings for {len(chunks)} chunks...")
-        embeddings = get_embeddings(chunks)
+        embeddings = await get_embeddings(chunks)
         log(f"✅ Embeddings complete")
 
         # Delete existing document if re-indexing
