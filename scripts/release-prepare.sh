@@ -23,9 +23,13 @@ git pull origin main
 echo "🌿 Creating release branch: $BRANCH_NAME"
 git checkout -b "$BRANCH_NAME"
 
+# Install dependencies
+echo "📦 Installing dependencies..."
+cd client/obsidian-plugin
+yarn install
+
 # Build the Obsidian plugin
 echo "🔨 Building Obsidian plugin..."
-cd client/obsidian-plugin
 yarn build
 cd ../..
 
