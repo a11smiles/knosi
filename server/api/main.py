@@ -182,12 +182,16 @@ async def send_progress(upload_id: str, status: str):
     if upload_id in upload_progress:
         progress_data = upload_progress[upload_id]
         progress_data["status"] = status
+        queues = progress_data.get("queues", [])
+        log(f"Sending progress to {len(queues)} SSE client(s): {status}")
         # Send to all queues
-        for queue in progress_data.get("queues", []):
+        for queue in queues:
             try:
                 await queue.put({"status": status, "filename": progress_data.get("filename", "")})
-            except:
-                pass  # Queue might be closed
+            except Exception as e:
+                log(f"Failed to send progress to queue: {e}")
+    else:
+        log(f"WARNING: send_progress called for unknown upload_id: {upload_id}")
 
 
 async def rate_limit_batch():
