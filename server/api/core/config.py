@@ -20,7 +20,17 @@ CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
 
 # Embedding Configuration
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
-EMBEDDING_DIM = 384  # Dimension for all-MiniLM-L6-v2
+
+# Embedding dimension - must match the model's output dimension
+# Common dimensions:
+# - all-MiniLM-L6-v2: 384
+# - all-mpnet-base-v2: 768
+# - BAAI/bge-base-en-v1.5: 768
+# - intfloat/e5-base-v2: 768
+# - nomic-ai/nomic-embed-text-v1: 768
+# WARNING: Changing this after indexing documents will cause dimension mismatches!
+# You must clear the database when switching embedding models.
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "384"))
 
 # PDF Processing Configuration
 PDF_BATCH_SIZE = int(os.getenv("PDF_BATCH_SIZE", "20"))  # Pages per batch

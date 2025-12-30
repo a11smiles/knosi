@@ -5,11 +5,9 @@ from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Integer, Text, LargeBinary
 from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
+from core.config import EMBEDDING_DIM
 
 Base = declarative_base()
-
-# Embedding dimension for all-MiniLM-L6-v2
-EMBEDDING_DIM = 384
 
 
 class Document(Base):
