@@ -743,20 +743,39 @@ class KnosiChatView extends ItemView {
 
 		const contentEl = messageEl.createEl('div', { cls: 'knosi-chat-message-content' });
 
-		// Simple markdown rendering - just handle line breaks
+		// Simple markdown rendering
 		const lines = content.split('\n');
 		lines.forEach((line, index) => {
-			if (index > 0) contentEl.createEl('br');
+			// Check for headers (## or ###)
+			const headerMatch = line.match(/^(#{2,3})\s+(.+)$/);
+			if (headerMatch) {
+				const level = headerMatch[1].length; // 2 for ##, 3 for ###
+				const headerText = headerMatch[2];
+				const headerEl = contentEl.createEl(`h${level}`, { cls: 'knosi-chat-header-text' });
 
-			// Handle bold markdown
-			const parts = line.split(/\*\*(.+?)\*\*/g);
-			parts.forEach((part, i) => {
-				if (i % 2 === 1) {
-					contentEl.createEl('strong', { text: part });
-				} else if (part) {
-					contentEl.appendText(part);
-				}
-			});
+				// Handle bold within headers
+				const parts = headerText.split(/\*\*(.+?)\*\*/g);
+				parts.forEach((part, i) => {
+					if (i % 2 === 1) {
+						headerEl.createEl('strong', { text: part });
+					} else if (part) {
+						headerEl.appendText(part);
+					}
+				});
+			} else {
+				// Regular line
+				if (index > 0) contentEl.createEl('br');
+
+				// Handle bold markdown
+				const parts = line.split(/\*\*(.+?)\*\*/g);
+				parts.forEach((part, i) => {
+					if (i % 2 === 1) {
+						contentEl.createEl('strong', { text: part });
+					} else if (part) {
+						contentEl.appendText(part);
+					}
+				});
+			}
 		});
 
 		// Add sources if provided
