@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, FileText } from 'lucide-react';
 import { api } from '../api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   id: string;
@@ -86,7 +88,11 @@ export default function ChatPanel() {
                   : 'bg-slate-800 text-slate-100'
               }`}
             >
-              <div className="whitespace-pre-wrap">{message.content}</div>
+              <div className="prose prose-invert prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {message.content}
+                </ReactMarkdown>
+              </div>
               {message.sources && message.sources.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-slate-700">
                   <div className="flex items-center gap-1 text-xs text-slate-400 mb-2">
