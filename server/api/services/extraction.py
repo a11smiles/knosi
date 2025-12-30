@@ -183,11 +183,11 @@ async def extract_text_from_pdf(content: bytes, filename: str, upload_id: Option
                     break
 
                 batch_end = min(batch_start + PDF_BATCH_SIZE, total_pages)
-                log(f"⚙️  Processing batch {batch_num}/{total_batches} (pages {batch_start+1}-{batch_end})...")
+                log(f"⚙️  Processing batch {batch_num}/{batches_to_process} (pages {batch_start+1}-{batch_end})...")
 
                 # Send progress update
                 if upload_id:
-                    await send_progress(upload_id, f"Processing {filename}: Batch {batch_num}/{total_batches} (pages {batch_start+1}-{batch_end})...")
+                    await send_progress(upload_id, f"Processing {filename}: Batch {batch_num}/{batches_to_process} (pages {batch_start+1}-{batch_end})...")
 
                 # Rate limit to avoid API limits
                 if batch_num > 1:  # Don't wait before first batch
@@ -198,7 +198,7 @@ async def extract_text_from_pdf(content: bytes, filename: str, upload_id: Option
 
             # Combine all batches
             full_text = "\n\n".join(extracted_parts)
-            log(f"✅ Extraction complete: {len(full_text):,} characters from {total_pages} pages ({total_batches} batches)")
+            log(f"✅ Extraction complete: {len(full_text):,} characters from {len(extracted_parts) * PDF_BATCH_SIZE} pages ({len(extracted_parts)} batches)")
             return full_text
 
         else:
