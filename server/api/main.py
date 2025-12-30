@@ -131,8 +131,20 @@ async def upload_progress_stream(
                     log(f"📤 SSE yielding event to client: {data['status']}")
                     yield ServerSentEvent(data=data['status'], event="progress")
 
+                    # Drain any additional messages that arrived while we were yielding
+                    while not queue.empty():
+                        try:
+                            extra_data = queue.get_nowait()
+                            log(f"📤 SSE yielding queued event to client: {extra_data['status']}")
+                            yield ServerSentEvent(data=extra_data['status'], event="progress")
+
+                            if extra_data['status'].startswith('complete:') or extra_data['status'].startswith('error:'):
+                                return
+                        except asyncio.QueueEmpty:
+                            break
+
                     # Close connection if upload is complete or failed
-                    if data['status'].startswith('complete:') or data['status'].startswith('error:'):
+                    if data['status'].startsWith('complete:') or data['status'].startswith('error:'):
                         break
 
                 except asyncio.TimeoutError:
