@@ -8,6 +8,7 @@ interface KnosiSettings {
 	syncIntervalMinutes: number;
 	supportedExtensions: string[];
 	excludePatterns: string[];
+	verboseLogging: boolean;
 }
 
 const DEFAULT_SETTINGS: KnosiSettings = {
@@ -17,7 +18,8 @@ const DEFAULT_SETTINGS: KnosiSettings = {
 	syncOnStartup: true,
 	syncIntervalMinutes: 1,
 	supportedExtensions: ['.md', '.txt', '.pdf', '.html', '.htm', '.org', '.rst', '.png', '.jpg', '.jpeg', '.gif', '.webp'],
-	excludePatterns: ['.obsidian/', '.trash/', 'Templates/']
+	excludePatterns: ['.obsidian/', '.trash/', 'Templates/'],
+	verboseLogging: false
 };
 
 export default class KnosiSyncPlugin extends Plugin {
@@ -484,7 +486,9 @@ export default class KnosiSyncPlugin extends Plugin {
 			}
 
 			const result = await response.json();
-			console.log(`Synced: ${file.path} (${result.status})`);
+			if (this.settings.verboseLogging) {
+				console.log(`Synced: ${file.path} (${result.status})`);
+			}
 
 		} catch (error) {
 			console.error(`Failed to sync ${file.path}:`, error);
@@ -505,7 +509,9 @@ export default class KnosiSyncPlugin extends Plugin {
 			);
 
 			if (response.ok) {
-				console.log(`Deleted from index: ${path}`);
+				if (this.settings.verboseLogging) {
+					console.log(`Deleted from index: ${path}`);
+				}
 			}
 		} catch (error) {
 			console.error(`Failed to delete ${path}:`, error);
@@ -683,6 +689,15 @@ class KnosiSettingTab extends PluginSettingTab {
 						.split(',')
 						.map(s => s.trim().toLowerCase())
 						.filter(s => s.startsWith('.'));
+				}));
+
+		new Setting(containerEl)
+			.setName('Verbose logging')
+			.setDesc('Log all sync operations to console. When disabled, only errors are logged.')
+			.addToggle(toggle => toggle
+				.setValue(this.tempSettings.verboseLogging)
+				.onChange((value) => {
+					this.tempSettings.verboseLogging = value;
 				}));
 
 		new Setting(containerEl)
