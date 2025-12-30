@@ -563,28 +563,34 @@ async def upload_progress_stream(
             upload_progress[upload_id] = {"status": "waiting", "filename": "", "queues": []}
         upload_progress[upload_id]["queues"].append(queue)
 
+        log(f"SSE client connected for upload {upload_id}")
+
         try:
             while True:
-                # Wait for progress update
-                data = await asyncio.wait_for(queue.get(), timeout=30.0)
+                # Wait for progress update with timeout for keepalive
+                try:
+                    data = await asyncio.wait_for(queue.get(), timeout=30.0)
 
-                # Send the update
-                yield {
-                    "event": "progress",
-                    "data": f"{data['status']}"
-                }
+                    # Send the update
+                    yield {
+                        "event": "progress",
+                        "data": f"{data['status']}"
+                    }
 
-                # If done, close the connection
-                if data['status'].startswith('complete:') or data['status'].startswith('error:'):
-                    break
+                    # If done, close the connection
+                    if data['status'].startswith('complete:') or data['status'].startswith('error:'):
+                        break
 
-        except asyncio.TimeoutError:
-            # Send keepalive
-            yield {"event": "ping", "data": ""}
+                except asyncio.TimeoutError:
+                    # Send keepalive and continue waiting
+                    yield {"event": "ping", "data": "keepalive"}
+                    continue
+
         except Exception as e:
             log(f"SSE error for upload {upload_id}: {e}")
         finally:
             # Cleanup
+            log(f"SSE client disconnected for upload {upload_id}")
             if upload_id in upload_progress:
                 try:
                     upload_progress[upload_id]["queues"].remove(queue)
