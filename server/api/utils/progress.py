@@ -16,11 +16,12 @@ async def send_progress(upload_id: str, status: str):
         progress_data["status"] = status
         queues = progress_data.get("queues", [])
         log(f"Sending progress to {len(queues)} SSE client(s): {status}")
-        for queue in queues:
+        for i, queue in enumerate(queues):
             try:
                 await queue.put({"status": status, "filename": progress_data.get("filename", "")})
+                log(f"  ✓ Put into queue #{i}, qsize={queue.qsize()}")
             except Exception as e:
-                log(f"Failed to send progress to queue: {e}")
+                log(f"  ✗ Failed to send progress to queue #{i}: {e}")
     else:
         log(f"WARNING: send_progress called for unknown upload_id: {upload_id}")
 
