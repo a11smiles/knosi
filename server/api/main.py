@@ -144,7 +144,7 @@ async def upload_progress_stream(
                             break
 
                     # Close connection if upload is complete or failed
-                    if data['status'].startsWith('complete:') or data['status'].startswith('error:'):
+                    if data['status'].startswith('complete:') or data['status'].startswith('error:'):
                         break
 
                 except asyncio.TimeoutError:
