@@ -38,7 +38,7 @@ knosi/
 │       └── src/
 ├── client/
 │   ├── knosi-sync.py           # Python filesystem watcher
-│   ├── obsidian-plugin/        # Obsidian integration
+│   ├── obsidian/               # Obsidian integration
 │   └── autostart/              # Mac/Windows auto-start scripts
 └── docs/                       # Detailed documentation
 ```
@@ -73,7 +73,7 @@ open http://localhost:48080              # Web UI
 
 ### Obsidian Plugin
 ```bash
-cd client/obsidian-plugin
+cd client/obsidian
 npm install
 npm run build
 # Copy to .obsidian/plugins/knosi-sync/ in a test vault
@@ -88,7 +88,7 @@ npm run build
 | `server/web/src/api.ts` | API client for frontend |
 | `server/docker-compose.yml` | Service orchestration |
 | `client/knosi-sync.py` | Python filesystem watcher |
-| `client/obsidian-plugin/main.ts` | Obsidian plugin |
+| `client/obsidian/main.ts` | Obsidian plugin |
 | `docs/DECISIONS.md` | Why things are built the way they are |
 
 ## API Endpoints

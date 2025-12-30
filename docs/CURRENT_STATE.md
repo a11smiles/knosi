@@ -82,7 +82,7 @@ knosi/
 └── client/
     ├── knosi-sync.py                  # Python filesystem watcher
     ├── requirements.txt               # Python dependencies
-    ├── obsidian-plugin/
+    ├── obsidian/
     │   ├── manifest.json              # Plugin metadata
     │   ├── main.ts                    # Plugin code
     │   ├── package.json               # Node dependencies
@@ -112,7 +112,7 @@ knosi/
 
 ### Obsidian Plugin
 
-1. [ ] Copy `client/obsidian-plugin/` to vault's `.obsidian/plugins/knosi-sync/`
+1. [ ] Copy `client/obsidian/` to vault's `.obsidian/plugins/knosi-sync/`
 2. [ ] Run `npm install`
 3. [ ] Run `npm run build`
 4. [ ] Enable plugin in Obsidian settings

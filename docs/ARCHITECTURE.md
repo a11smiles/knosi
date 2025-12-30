@@ -151,7 +151,7 @@ chunks (
 
 ### Client Components
 
-#### Obsidian Plugin (`client/obsidian-plugin/`)
+#### Obsidian Plugin (`client/obsidian/`)
 
 **Architecture:**
 - TypeScript, built with esbuild

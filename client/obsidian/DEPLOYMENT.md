@@ -31,7 +31,7 @@ The Knosi Sync plugin for Obsidian automatically syncs your vault to your Knosi 
 
 ```bash
 # Copy plugin to your vault
-cp -r client/obsidian-plugin /path/to/your/vault/.obsidian/plugins/knosi-sync
+cp -r client/obsidian /path/to/your/vault/.obsidian/plugins/knosi-sync
 
 # Build the plugin
 cd /path/to/your/vault/.obsidian/plugins/knosi-sync

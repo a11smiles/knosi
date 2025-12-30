@@ -68,7 +68,7 @@ Built by [Joshua](https://github.com/a11smiles) for indexing large theological d
 
 📚 **Deployment Guides:**
 - **[Server Deployment](DEPLOYMENT.md)** - Deploy Knosi on a VPS with Docker
-- **[Obsidian Plugin](client/obsidian-plugin/DEPLOYMENT.md)** - Sync your Obsidian vault
+- **[Obsidian Plugin](client/obsidian/DEPLOYMENT.md)** - Sync your Obsidian vault
 - **[Filesystem Watcher](client/FILESYSTEM_WATCHER.md)** - Watch any folder for changes
 
 📖 **Additional Documentation:**
@@ -98,7 +98,7 @@ Pick one based on your workflow:
 
 | Client | Best For | Guide |
 |--------|----------|-------|
-| **Obsidian Plugin** | Obsidian-only workflows | [Obsidian Deployment Guide](client/obsidian-plugin/DEPLOYMENT.md) |
+| **Obsidian Plugin** | Obsidian-only workflows | [Obsidian Deployment Guide](client/obsidian/DEPLOYMENT.md) |
 | **Filesystem Watcher** | Any editor, catches all filesystem changes | [Watcher Deployment Guide](client/FILESYSTEM_WATCHER.md) |
 
 ### 3. Start Syncing
@@ -233,7 +233,7 @@ npm run dev  # Runs on http://localhost:3000
 ### Building Obsidian Plugin
 
 ```bash
-cd client/obsidian-plugin
+cd client/obsidian
 npm install
 npm run build  # Output: main.js
 ```
@@ -260,7 +260,7 @@ docker compose logs -f api
 ### Client Issues
 
 **Obsidian Plugin:**
-- See [Obsidian Deployment Guide](client/obsidian-plugin/DEPLOYMENT.md#troubleshooting)
+- See [Obsidian Deployment Guide](client/obsidian/DEPLOYMENT.md#troubleshooting)
 
 **Filesystem Watcher:**
 - See [Watcher Deployment Guide](client/FILESYSTEM_WATCHER.md#troubleshooting)
