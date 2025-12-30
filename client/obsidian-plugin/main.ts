@@ -721,10 +721,11 @@ class KnosiChatView extends ItemView {
 		// Event listeners
 		this.sendButton.addEventListener('click', () => this.sendMessage());
 		this.inputEl.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+			if (e.key === 'Enter' && !e.shiftKey) {
 				e.preventDefault();
 				this.sendMessage();
 			}
+			// Shift+Enter allows newline (default textarea behavior)
 		});
 
 		// Add welcome message
@@ -761,10 +762,23 @@ class KnosiChatView extends ItemView {
 		// Add sources if provided
 		if (sources && sources.length > 0) {
 			const sourcesEl = messageEl.createEl('div', { cls: 'knosi-chat-sources' });
-			sourcesEl.createEl('strong', { text: 'Sources: ' });
-			sources.forEach((source, index) => {
-				if (index > 0) sourcesEl.appendText(', ');
-				sourcesEl.appendText(source.filename);
+			sourcesEl.createEl('strong', { text: 'Sources:' });
+			const listEl = sourcesEl.createEl('ul', { cls: 'knosi-chat-sources-list' });
+
+			sources.forEach((source) => {
+				const itemEl = listEl.createEl('li');
+				const linkEl = itemEl.createEl('a', {
+					text: source.filename,
+					cls: 'knosi-chat-source-link',
+					href: '#'
+				});
+
+				linkEl.addEventListener('click', (e) => {
+					e.preventDefault();
+					// Open download URL in new window
+					const downloadUrl = `${this.plugin.settings.serverUrl}/api/documents/${encodeURIComponent(source.filename)}/download?api_key=${encodeURIComponent(this.plugin.settings.apiKey)}`;
+					window.open(downloadUrl, '_blank');
+				});
 			});
 		}
 

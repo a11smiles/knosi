@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import our refactored modules
 from core import (
-    init_db, get_session, close_db, verify_api_key,
+    init_db, get_session, close_db, verify_api_key, verify_api_key_query_or_header,
     ANTHROPIC_API_KEY, MAX_FILE_SIZE_MB, API_SECRET_KEY, SUPPORTED_EXTENSIONS
 )
 from models import Document, Chunk
@@ -338,9 +338,8 @@ async def upload_document(
 @app.get("/api/documents/{filename:path}/download")
 async def download_document(
     filename: str,
-    api_key: Optional[str] = Query(None),
     session: AsyncSession = Depends(get_session),
-    _: bool = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key_query_or_header)
 ):
     """Download original document file."""
     result = await session.execute(

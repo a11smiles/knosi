@@ -49,6 +49,9 @@
 .knosi-chat-message-content {
   line-height: 1.5;
   word-wrap: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 .knosi-chat-sources {
@@ -56,7 +59,31 @@
   padding-top: 8px;
   border-top: 1px solid var(--background-modifier-border);
   font-size: 0.9em;
-  opacity: 0.8;
+}
+
+.knosi-chat-sources strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.knosi-chat-sources-list {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+
+.knosi-chat-sources-list li {
+  margin: 2px 0;
+}
+
+.knosi-chat-source-link {
+  color: var(--text-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.knosi-chat-source-link:hover {
+  text-decoration: underline;
 }
 
 .knosi-chat-loading .knosi-chat-message-content {

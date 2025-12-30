@@ -3,7 +3,7 @@ Core configuration and dependencies
 """
 from .config import *
 from .database import init_db, get_session, close_db
-from .deps import verify_api_key
+from .deps import verify_api_key, verify_api_key_query_or_header
 
 __all__ = [
     # Config
@@ -25,4 +25,5 @@ __all__ = [
     "close_db",
     # Dependencies
     "verify_api_key",
+    "verify_api_key_query_or_header",
 ]
