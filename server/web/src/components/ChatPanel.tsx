@@ -95,12 +95,17 @@ export default function ChatPanel() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {[...new Set(message.sources.map((s) => s.filename))].map((filename) => (
-                      <span
+                      <button
                         key={filename}
-                        className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded"
+                        onClick={() => {
+                          const downloadUrl = api.getDownloadUrl(filename);
+                          window.open(downloadUrl, '_blank');
+                        }}
+                        className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-primary-400 px-2 py-1 rounded cursor-pointer transition-colors"
+                        title={`Download ${filename}`}
                       >
                         {filename}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 </div>
