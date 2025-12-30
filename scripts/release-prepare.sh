@@ -72,10 +72,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 echo "⬆️  Pushing release branch..."
 git push -u origin "$BRANCH_NAME"
 
-# Create and push tag
+# Create and push tag (use refs/tags/ to be explicit)
 echo "🏷️  Creating tag: $VERSION"
 git tag "$VERSION"
-git push origin "$VERSION"
+git push origin "refs/tags/$VERSION"
 
 # Switch back to main
 echo "↩️  Switching back to main branch..."
