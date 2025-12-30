@@ -303,10 +303,13 @@ async def extract_text_from_image(content: bytes, filename: str) -> str:
 
     media_type = media_type_map.get(ext, 'image/jpeg')
 
-    # Claude has a 5MB limit for images
+    # Claude has a 5MB limit for images (after base64 encoding)
+    # Base64 encoding increases size by ~33%, so we need to target 3.75MB for the raw image
+    # to stay under 5MB after encoding
     MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB in bytes
+    MAX_RAW_SIZE = int(MAX_IMAGE_SIZE * 0.75)  # 3.75MB target for raw image before base64
 
-    if len(content) > MAX_IMAGE_SIZE:
+    if len(content) > MAX_RAW_SIZE:
         # Automatically resize image to fit under 5MB
         file_size_mb = len(content) / (1024 * 1024)
         log(f"   ⚠️  Image too large ({file_size_mb:.1f}MB > 5MB), resizing...")
@@ -324,14 +327,14 @@ async def extract_text_from_image(content: bytes, filename: str) -> str:
                 background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
                 img = background
 
-            # Progressively reduce quality/size until under 5MB
+            # Progressively reduce quality/size until under 3.75MB (target before base64)
             quality = 85
             while quality > 20:
                 output = io.BytesIO()
                 img.save(output, format='JPEG', quality=quality, optimize=True)
                 resized_content = output.getvalue()
 
-                if len(resized_content) <= MAX_IMAGE_SIZE:
+                if len(resized_content) <= MAX_RAW_SIZE:
                     content = resized_content
                     media_type = 'image/jpeg'
                     final_size_mb = len(content) / (1024 * 1024)
@@ -340,11 +343,11 @@ async def extract_text_from_image(content: bytes, filename: str) -> str:
 
                 quality -= 10
 
-            if len(content) > MAX_IMAGE_SIZE:
+            if len(content) > MAX_RAW_SIZE:
                 # Still too large, reduce dimensions
                 log(f"   🔄 Quality reduction insufficient, reducing dimensions...")
                 scale = 0.8
-                while scale > 0.3 and len(content) > MAX_IMAGE_SIZE:
+                while scale > 0.3 and len(content) > MAX_RAW_SIZE:
                     new_size = (int(img.width * scale), int(img.height * scale))
                     resized_img = img.resize(new_size, Image.Resampling.LANCZOS)
                     output = io.BytesIO()
@@ -352,7 +355,7 @@ async def extract_text_from_image(content: bytes, filename: str) -> str:
                     content = output.getvalue()
                     scale -= 0.1
 
-                if len(content) <= MAX_IMAGE_SIZE:
+                if len(content) <= MAX_RAW_SIZE:
                     final_size_mb = len(content) / (1024 * 1024)
                     final_dimensions = (int(img.width * scale), int(img.height * scale))
                     log(f"   ✅ Resized to {final_size_mb:.1f}MB ({original_size[0]}x{original_size[1]} → {final_dimensions[0]}x{final_dimensions[1]})")
