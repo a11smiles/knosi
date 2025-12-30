@@ -409,12 +409,18 @@ async def chat(
     _: bool = Depends(verify_api_key)
 ):
     """Chat with your documents using RAG."""
-    result = await chat_with_documents(
-        request.message,
-        session,
-        request.include_sources
-    )
-    return ChatResponse(**result)
+    try:
+        result = await chat_with_documents(
+            request.message,
+            session,
+            request.include_sources
+        )
+        return ChatResponse(**result)
+    except Exception as e:
+        log(f"❌ Chat endpoint error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 @app.get("/api/search")
