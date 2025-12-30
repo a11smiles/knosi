@@ -13,7 +13,10 @@
       "Bash(cat:*)",
       "WebSearch",
       "WebFetch(domain:supermemory.ai)",
-      "WebFetch(domain:app.khoj.dev)"
+      "WebFetch(domain:app.khoj.dev)",
+      "Bash(git checkout:*)",
+      "Bash(git log:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

@@ -307,13 +307,17 @@ async def extract_text_from_image(content: bytes, filename: str) -> str:
     MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB in bytes
 
     if len(content) > MAX_IMAGE_SIZE:
-        # Silently resize image to fit under 5MB
+        # Automatically resize image to fit under 5MB
+        file_size_mb = len(content) / (1024 * 1024)
+        log(f"   ⚠️  Image too large ({file_size_mb:.1f}MB > 5MB), resizing...")
         try:
             from PIL import Image
             img = Image.open(io.BytesIO(content))
+            original_size = img.size
 
             # Convert to RGB if necessary (for PNG with transparency, etc.)
             if img.mode in ('RGBA', 'LA', 'P'):
+                log(f"   🔄 Converting {img.mode} to RGB...")
                 background = Image.new('RGB', img.size, (255, 255, 255))
                 if img.mode == 'P':
                     img = img.convert('RGBA')
@@ -330,12 +334,15 @@ async def extract_text_from_image(content: bytes, filename: str) -> str:
                 if len(resized_content) <= MAX_IMAGE_SIZE:
                     content = resized_content
                     media_type = 'image/jpeg'
+                    final_size_mb = len(content) / (1024 * 1024)
+                    log(f"   ✅ Resized to {final_size_mb:.1f}MB (quality={quality})")
                     break
 
                 quality -= 10
 
             if len(content) > MAX_IMAGE_SIZE:
                 # Still too large, reduce dimensions
+                log(f"   🔄 Quality reduction insufficient, reducing dimensions...")
                 scale = 0.8
                 while scale > 0.3 and len(content) > MAX_IMAGE_SIZE:
                     new_size = (int(img.width * scale), int(img.height * scale))
@@ -345,7 +352,11 @@ async def extract_text_from_image(content: bytes, filename: str) -> str:
                     content = output.getvalue()
                     scale -= 0.1
 
-                if len(content) > MAX_IMAGE_SIZE:
+                if len(content) <= MAX_IMAGE_SIZE:
+                    final_size_mb = len(content) / (1024 * 1024)
+                    final_dimensions = (int(img.width * scale), int(img.height * scale))
+                    log(f"   ✅ Resized to {final_size_mb:.1f}MB ({original_size[0]}x{original_size[1]} → {final_dimensions[0]}x{final_dimensions[1]})")
+                else:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Image too large even after resizing. Maximum is 5MB."
