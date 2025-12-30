@@ -20,7 +20,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: client/obsidian-plugin
+        working-directory: client/obsidian
 
     steps:
       - name: Checkout repository
@@ -42,9 +42,9 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            client/obsidian-plugin/main.js
-            client/obsidian-plugin/manifest.json
-            client/obsidian-plugin/styles.css
+            client/obsidian/main.js
+            client/obsidian/manifest.json
+            client/obsidian/styles.css
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
