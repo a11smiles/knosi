@@ -7,6 +7,7 @@ interface KnosiSettings {
 	syncOnStartup: boolean;
 	syncIntervalMinutes: number;
 	supportedExtensions: string[];
+	excludePatterns: string[];
 }
 
 const DEFAULT_SETTINGS: KnosiSettings = {
@@ -15,7 +16,8 @@ const DEFAULT_SETTINGS: KnosiSettings = {
 	autoSync: true,
 	syncOnStartup: true,
 	syncIntervalMinutes: 1,
-	supportedExtensions: ['.md', '.txt', '.pdf', '.html', '.htm', '.org', '.rst', '.png', '.jpg', '.jpeg', '.gif', '.webp']
+	supportedExtensions: ['.md', '.txt', '.pdf', '.html', '.htm', '.org', '.rst', '.png', '.jpg', '.jpeg', '.gif', '.webp'],
+	excludePatterns: ['.obsidian/', '.trash/', 'Templates/']
 };
 
 export default class KnosiSyncPlugin extends Plugin {
@@ -123,6 +125,17 @@ export default class KnosiSyncPlugin extends Plugin {
 		}
 	}
 
+	async saveSettingsAndRescanExclusions(oldPatterns: string[]) {
+		await this.saveData(this.settings);
+
+		// Check if exclusion patterns changed
+		const newPatterns = this.settings.excludePatterns;
+		if (JSON.stringify(oldPatterns) !== JSON.stringify(newPatterns)) {
+			// Patterns changed - rescan vault for newly excluded files
+			this.rescanVaultForNewExclusions(oldPatterns, newPatterns);
+		}
+	}
+
 	rescanVaultForNewExtensions(oldExtensions: string[], newExtensions: string[]) {
 		// Find newly added extensions
 		const addedExtensions = newExtensions.filter(ext => !oldExtensions.includes(ext));
@@ -140,7 +153,7 @@ export default class KnosiSyncPlugin extends Plugin {
 
 		for (const file of files) {
 			const ext = '.' + file.extension.toLowerCase();
-			if (addedExtensions.includes(ext)) {
+			if (addedExtensions.includes(ext) && !this.isExcluded(file.path)) {
 				this.pendingUploads.add(file.path);
 				queuedCount++;
 			}
@@ -152,6 +165,73 @@ export default class KnosiSyncPlugin extends Plugin {
 			this.updateStatusBar('pending');
 		} else {
 			new Notice('No new files found to sync');
+		}
+	}
+
+	rescanVaultForNewExclusions(oldPatterns: string[], newPatterns: string[]) {
+		// Find newly added exclusion patterns
+		const addedPatterns = newPatterns.filter(p => !oldPatterns.includes(p));
+
+		if (addedPatterns.length === 0) {
+			return;
+		}
+
+		console.log(`Rescanning vault for newly excluded patterns: ${addedPatterns.join(', ')}`);
+		new Notice(`Finding files to delete for: ${addedPatterns.join(', ')}`);
+
+		// Find all files that match the new exclusion patterns
+		const files = this.app.vault.getFiles();
+		let queuedCount = 0;
+
+		for (const file of files) {
+			// Check if file matches any of the NEW exclusion patterns
+			for (const pattern of addedPatterns) {
+				if (!pattern.trim()) continue;
+
+				let matches = false;
+
+				// Directory pattern (ends with /)
+				if (pattern.endsWith('/')) {
+					if (file.path.startsWith(pattern) || file.path.includes('/' + pattern)) {
+						matches = true;
+					}
+				}
+				// Simple glob patterns (* and **)
+				else if (pattern.includes('*')) {
+					const regexPattern = pattern
+						.replace(/\./g, '\\.')
+						.replace(/\*\*/g, '.*')
+						.replace(/\*/g, '[^/]*');
+					const regex = new RegExp('^' + regexPattern + '$');
+					if (regex.test(file.path)) {
+						matches = true;
+					}
+				}
+				// Exact filename match
+				else {
+					const fileName = file.path.split('/').pop() || '';
+					if (fileName === pattern || file.path === pattern || file.path.endsWith('/' + pattern)) {
+						matches = true;
+					}
+				}
+
+				if (matches) {
+					// Remove from upload queue if present
+					this.pendingUploads.delete(file.path);
+					// Add to delete queue
+					this.pendingDeletes.add(file.path);
+					queuedCount++;
+					break; // Found a match, no need to check other patterns
+				}
+			}
+		}
+
+		if (queuedCount > 0) {
+			console.log(`Queued ${queuedCount} files for deletion`);
+			new Notice(`Queued ${queuedCount} files for deletion from server`);
+			this.updateStatusBar('pending');
+		} else {
+			new Notice('No matching files found to delete');
 		}
 	}
 
@@ -198,16 +278,55 @@ export default class KnosiSyncPlugin extends Plugin {
 		return this.settings.supportedExtensions.includes(ext);
 	}
 
+	isExcluded(filePath: string): boolean {
+		// Check if file matches any exclusion pattern
+		for (const pattern of this.settings.excludePatterns) {
+			if (!pattern.trim()) continue;
+
+			// Directory pattern (ends with /)
+			if (pattern.endsWith('/')) {
+				if (filePath.startsWith(pattern) || filePath.includes('/' + pattern)) {
+					return true;
+				}
+			}
+			// Simple glob patterns (* and **)
+			else if (pattern.includes('*')) {
+				const regexPattern = pattern
+					.replace(/\./g, '\\.')
+					.replace(/\*\*/g, '.*')
+					.replace(/\*/g, '[^/]*');
+				const regex = new RegExp('^' + regexPattern + '$');
+				if (regex.test(filePath)) {
+					return true;
+				}
+			}
+			// Exact filename match
+			else {
+				const fileName = filePath.split('/').pop() || '';
+				if (fileName === pattern || filePath === pattern || filePath.endsWith('/' + pattern)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	queueFileUpload(file: TAbstractFile) {
 		if (!this.isSupportedFile(file)) return;
-		
+
+		// Check if file is excluded
+		if (this.isExcluded(file.path)) {
+			console.log(`Skipping excluded file: ${file.path}`);
+			return;
+		}
+
 		// Remove from delete queue if present
 		this.pendingDeletes.delete(file.path);
-		
+
 		// Add to upload queue
 		this.pendingUploads.add(file.path);
 		this.updateStatusBar('pending');
-		
+
 		console.log(`Queued for sync: ${file.path} (${this.pendingUploads.size} in queue)`);
 	}
 
@@ -570,6 +689,25 @@ class KnosiSettingTab extends PluginSettingTab {
 						.filter(s => s.startsWith('.'));
 					await this.plugin.saveSettingsAndRescan(oldExtensions);
 				}));
+
+		new Setting(containerEl)
+			.setName('Exclude patterns')
+			.setDesc('Paths/files to exclude (comma-separated). Supports directories (end with /), filenames, or glob patterns (*). Adding new patterns will delete matching files from server.')
+			.addTextArea(text => {
+				text
+					.setPlaceholder('.obsidian/, Templates/, *.tmp, **/*.backup')
+					.setValue(this.plugin.settings.excludePatterns.join(', '))
+					.onChange(async (value) => {
+						const oldPatterns = [...this.plugin.settings.excludePatterns];
+						this.plugin.settings.excludePatterns = value
+							.split(',')
+							.map(s => s.trim())
+							.filter(s => s.length > 0);
+						await this.plugin.saveSettingsAndRescanExclusions(oldPatterns);
+					});
+				text.inputEl.rows = 3;
+				text.inputEl.style.width = '100%';
+			});
 
 		containerEl.createEl('h3', { text: 'Actions' });
 
