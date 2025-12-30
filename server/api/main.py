@@ -293,7 +293,7 @@ async def upload_document(
         await session.commit()
 
         log(f"✅ {filename} indexed successfully ({len(chunks)} chunks)")
-        await send_progress(upload_id, f"complete:{filename} indexed successfully ({len(chunks)} chunks)")
+        await send_progress(upload_id, f"complete:{filename} uploaded successfully.")
 
         return {
             "message": "Document indexed successfully",

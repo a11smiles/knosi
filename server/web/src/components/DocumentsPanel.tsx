@@ -64,7 +64,7 @@ export default function DocumentsPanel({ onDocumentsChanged }: Props) {
         if (!uploadStatus) { // Only update if not already set by SSE
           setUploadStatus({
             type: 'success',
-            message: `${file.name}: ${result.status} (${result.chunks} chunks)`,
+            message: `${file.name} uploaded successfully.`,
           });
         }
         loadDocuments();
