@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS: KnosiSettings = {
 	autoSync: true,
 	syncOnStartup: true,
 	syncIntervalMinutes: 1,
-	supportedExtensions: ['.md', '.txt', '.pdf', '.html', '.htm', '.org', '.rst']
+	supportedExtensions: ['.md', '.txt', '.pdf', '.html', '.htm', '.org', '.rst', '.png', '.jpg', '.jpeg', '.gif', '.webp']
 };
 
 export default class KnosiSyncPlugin extends Plugin {
@@ -294,6 +294,13 @@ export default class KnosiSyncPlugin extends Plugin {
 	async uploadFile(file: TFile) {
 		try {
 			const content = await this.app.vault.readBinary(file);
+
+			// Skip empty files
+			if (content.byteLength === 0) {
+				console.log(`Skipping empty file: ${file.path}`);
+				return;
+			}
+
 			const blob = new Blob([content]);
 
 			// Create form data

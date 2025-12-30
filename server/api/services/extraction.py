@@ -285,6 +285,76 @@ async def extract_text_from_docx(content: bytes) -> str:
     return '\n\n'.join(text_parts)
 
 
+async def extract_text_from_image(content: bytes, filename: str) -> str:
+    """Extract text from image using Claude's vision capability."""
+    if not claude_client:
+        raise HTTPException(status_code=500, detail="Claude API not configured")
+
+    ext = Path(filename).suffix.lower()
+
+    # Map extension to media type
+    media_type_map = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp'
+    }
+
+    media_type = media_type_map.get(ext, 'image/jpeg')
+    base64_image = base64.standard_b64encode(content).decode("utf-8")
+
+    try:
+        log(f"🖼️  Extracting text from image: {filename}")
+
+        import asyncio
+        from functools import partial
+
+        # Run the blocking Claude API call in a thread pool
+        loop = asyncio.get_event_loop()
+        message = await loop.run_in_executor(
+            None,
+            partial(
+                claude_client.messages.create,
+                model="claude-sonnet-4-20250514",
+                max_tokens=4000,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": base64_image,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": "Extract all text content from this image. If the image contains diagrams, charts, or visual information, describe them. Output only the extracted text and descriptions, no commentary."
+                        }
+                    ],
+                }]
+            )
+        )
+
+        usage = message.usage
+        log(f"   ✅ Image processed: {usage.input_tokens} input tokens, {usage.output_tokens} output tokens")
+
+        return message.content[0].text
+
+    except anthropic.BadRequestError as e:
+        if "content filtering policy" in str(e):
+            raise HTTPException(
+                status_code=400,
+                detail="Image content was blocked by Claude's content filtering policy."
+            )
+        raise HTTPException(status_code=400, detail=f"Claude API error: {str(e)}")
+    except Exception as e:
+        log(f"   ❌ Image extraction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Image extraction failed: {str(e)}")
+
+
 async def extract_text(content: bytes, filename: str, upload_id: Optional[str] = None) -> str:
     """Extract text from file based on extension."""
     ext = Path(filename).suffix.lower()
@@ -293,7 +363,13 @@ async def extract_text(content: bytes, filename: str, upload_id: Optional[str] =
         return await extract_text_from_pdf(content, filename, upload_id)
     elif ext == '.docx':
         return await extract_text_from_docx(content)
+    elif ext in {'.png', '.jpg', '.jpeg', '.gif', '.webp'}:
+        return await extract_text_from_image(content, filename)
     elif ext in {'.md', '.txt', '.org', '.rst', '.html', '.htm'}:
+        # Handle empty files
+        if not content or len(content.strip()) == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
+
         # Try common encodings
         for encoding in ['utf-8', 'latin-1', 'cp1252']:
             try:

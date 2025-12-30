@@ -12,7 +12,10 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://knosi:knosi@local
 
 # File Upload Configuration
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "100"))
-SUPPORTED_EXTENSIONS = {".pdf", ".md", ".txt", ".org", ".rst", ".html", ".htm", ".docx"}
+SUPPORTED_EXTENSIONS = {
+    ".pdf", ".md", ".txt", ".org", ".rst", ".html", ".htm", ".docx",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp"  # Image formats
+}
 
 # Text Chunking Configuration
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "4000"))
