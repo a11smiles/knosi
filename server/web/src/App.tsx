@@ -42,7 +42,7 @@ function App() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">K</span>
+              <span className="text-white" style={{ fontFamily: "'Sour Gummy', cursive", fontWeight: 400, fontSize: '2rem', marginLeft: '2px' }}>K</span>
             </div>
             <h1 className="text-xl font-semibold text-white">Knosi</h1>
           </div>
