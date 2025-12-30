@@ -615,22 +615,28 @@ export default class KnosiSyncPlugin extends Plugin {
 		this.syncInProgress = true;
 		this.updateStatusBar('syncing', 'all files');
 
-		const files = this.app.vault.getFiles().filter(f => this.isSupportedFile(f));
+		const files = this.app.vault.getFiles().filter(f => this.isSupportedFile(f) && !this.isExcluded(f.path));
 		let synced = 0;
 		let errors = 0;
 
 		new Notice(`Syncing ${files.length} files...`);
 
+		// Track all files in currentlyProcessing for queue visibility
+		this.currentlyProcessing = new Set(files.map(f => f.path));
+
 		for (const file of files) {
 			try {
 				await this.uploadFile(file);
+				this.currentlyProcessing.delete(file.path);
 				synced++;
 			} catch {
+				this.currentlyProcessing.delete(file.path);
 				errors++;
 			}
 		}
 
 		this.syncInProgress = false;
+		this.currentlyProcessing.clear();
 		this.updateStatusBar('idle');
 
 		new Notice(`Sync complete: ${synced} files synced${errors > 0 ? `, ${errors} errors` : ''}`);
