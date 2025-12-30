@@ -249,9 +249,22 @@ async def upload_document(
         # Check if already indexed with same hash
         log(f"DEBUG: Computing file hash")
         file_hash = compute_file_hash(content)
-        existing = await session.execute(
-            select(Document).where(Document.filename == filename)
-        )
+
+        # Query by both filename AND vault_name to support multi-vault setups
+        if vault_name:
+            existing = await session.execute(
+                select(Document).where(
+                    Document.filename == filename,
+                    Document.vault_name == vault_name
+                )
+            )
+        else:
+            existing = await session.execute(
+                select(Document).where(
+                    Document.filename == filename,
+                    Document.vault_name.is_(None)
+                )
+            )
         existing_doc = existing.scalar_one_or_none()
 
         if existing_doc and existing_doc.file_hash == file_hash:
@@ -341,13 +354,26 @@ async def upload_document(
 @app.get("/api/documents/{filename:path}/download")
 async def download_document(
     filename: str,
+    vault_name: Optional[str] = Query(None),
     session: AsyncSession = Depends(get_session),
     _: bool = Depends(verify_api_key_query_or_header)
 ):
     """Download original document file."""
-    result = await session.execute(
-        select(Document).where(Document.filename == filename)
-    )
+    # Query by both filename AND vault_name to support multi-vault setups
+    if vault_name:
+        result = await session.execute(
+            select(Document).where(
+                Document.filename == filename,
+                Document.vault_name == vault_name
+            )
+        )
+    else:
+        result = await session.execute(
+            select(Document).where(
+                Document.filename == filename,
+                Document.vault_name.is_(None)
+            )
+        )
     doc = result.scalar_one_or_none()
 
     if not doc:
@@ -382,13 +408,26 @@ async def download_document(
 @app.delete("/api/documents/{filename:path}")
 async def delete_document(
     filename: str,
+    vault_name: Optional[str] = Query(None),
     session: AsyncSession = Depends(get_session),
     _: bool = Depends(verify_api_key)
 ):
     """Delete a document and its chunks from the index."""
-    result = await session.execute(
-        select(Document).where(Document.filename == filename)
-    )
+    # Query by both filename AND vault_name to support multi-vault setups
+    if vault_name:
+        result = await session.execute(
+            select(Document).where(
+                Document.filename == filename,
+                Document.vault_name == vault_name
+            )
+        )
+    else:
+        result = await session.execute(
+            select(Document).where(
+                Document.filename == filename,
+                Document.vault_name.is_(None)
+            )
+        )
     doc = result.scalar_one_or_none()
 
     if not doc:
