@@ -17,7 +17,6 @@ from fastapi.responses import Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 # Import our refactored modules
 from core import (
@@ -129,18 +128,15 @@ async def upload_progress_stream(
                     data = await asyncio.wait_for(queue.get(), timeout=30.0)
 
                     log(f"📤 SSE yielding event to client: {data['status']}")
-                    yield ServerSentEvent(data=data['status'], event="progress")
-                    # Force flush with a comment
-                    yield ServerSentEvent(comment="")
+                    # Manual SSE formatting with immediate flush
+                    yield f"event: progress\ndata: {data['status']}\n\n"
 
                     # Drain any additional messages that arrived while we were yielding
                     while not queue.empty():
                         try:
                             extra_data = queue.get_nowait()
                             log(f"📤 SSE yielding queued event to client: {extra_data['status']}")
-                            yield ServerSentEvent(data=extra_data['status'], event="progress")
-                            # Force flush with a comment
-                            yield ServerSentEvent(comment="")
+                            yield f"event: progress\ndata: {extra_data['status']}\n\n"
 
                             if extra_data['status'].startswith('complete:') or extra_data['status'].startswith('error:'):
                                 return
@@ -153,7 +149,7 @@ async def upload_progress_stream(
 
                 except asyncio.TimeoutError:
                     # Send keepalive to prevent buffering
-                    yield ServerSentEvent(comment="keepalive")
+                    yield ": keepalive\n\n"
                     continue
 
         finally:
@@ -165,12 +161,14 @@ async def upload_progress_stream(
                 except ValueError:
                     pass
 
-    return EventSourceResponse(
+    return StreamingResponse(
         event_generator(),
+        media_type="text/event-stream",
         headers={
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
-        },
-        ping=1  # Send ping every 1 second to force flush
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
     )
 
 
