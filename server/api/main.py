@@ -647,8 +647,14 @@ async def upload_document(
         filename = path or file.filename
         log(f"DEBUG: Using filename={filename}")
 
-        # Initialize progress tracking
-        upload_progress[upload_id] = {"status": f"Uploading {filename}...", "filename": filename, "queues": []}
+        # Initialize or update progress tracking (preserve existing queues from SSE)
+        if upload_id not in upload_progress:
+            upload_progress[upload_id] = {"status": f"Uploading {filename}...", "filename": filename, "queues": []}
+        else:
+            # Update existing entry but keep the queues
+            upload_progress[upload_id]["filename"] = filename
+            upload_progress[upload_id]["status"] = f"Uploading {filename}..."
+
         await send_progress(upload_id, f"Uploading {filename}...")
 
         ext = Path(filename).suffix.lower()
