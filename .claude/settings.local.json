@@ -12,7 +12,8 @@
       "Bash(yarn build)",
       "Bash(cat:*)",
       "WebSearch",
-      "WebFetch(domain:supermemory.ai)"
+      "WebFetch(domain:supermemory.ai)",
+      "WebFetch(domain:app.khoj.dev)"
     ],
     "deny": [],
     "ask": []
