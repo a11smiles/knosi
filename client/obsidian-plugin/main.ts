@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS: KnosiSettings = {
 	apiKey: '',
 	autoSync: true,
 	syncOnStartup: true,
-	syncIntervalMinutes: 1,
+	syncIntervalMinutes: 10,
 	supportedExtensions: ['.md', '.txt', '.pdf', '.html', '.htm', '.org', '.rst', '.png', '.jpg', '.jpeg', '.gif', '.webp'],
 	excludePatterns: ['.obsidian/', '.trash/', 'Templates/'],
 	verboseLogging: false
@@ -38,25 +38,6 @@ export default class KnosiSyncPlugin extends Plugin {
 		// Status bar
 		this.statusBarItem = this.addStatusBarItem();
 		this.updateStatusBar('idle');
-
-		// Register vault events
-		if (this.settings.autoSync) {
-			this.registerEvent(
-				this.app.vault.on('create', (file) => this.queueFileUpload(file))
-			);
-			this.registerEvent(
-				this.app.vault.on('modify', (file) => this.queueFileUpload(file))
-			);
-			this.registerEvent(
-				this.app.vault.on('delete', (file) => this.queueFileDelete(file))
-			);
-			this.registerEvent(
-				this.app.vault.on('rename', (file, oldPath) => this.handleFileRename(file, oldPath))
-			);
-			
-			// Start the sync interval
-			this.startSyncInterval();
-		}
 
 		// Commands
 		this.addCommand({
@@ -92,11 +73,32 @@ export default class KnosiSyncPlugin extends Plugin {
 		// Settings tab
 		this.addSettingTab(new KnosiSettingTab(this.app, this));
 
-		// Initial sync on startup
-		if (this.settings.syncOnStartup) {
-			// Delay to let Obsidian fully load
-			setTimeout(() => this.syncAllFiles(), 3000);
-		}
+		// Delay registering file watchers and initial sync to avoid queueing all files on startup
+		setTimeout(() => {
+			// Initial sync on startup (if enabled)
+			if (this.settings.syncOnStartup) {
+				this.syncAllFiles();
+			}
+
+			// Register vault events after initial sync to avoid queueing existing files
+			if (this.settings.autoSync) {
+				this.registerEvent(
+					this.app.vault.on('create', (file) => this.queueFileUpload(file))
+				);
+				this.registerEvent(
+					this.app.vault.on('modify', (file) => this.queueFileUpload(file))
+				);
+				this.registerEvent(
+					this.app.vault.on('delete', (file) => this.queueFileDelete(file))
+				);
+				this.registerEvent(
+					this.app.vault.on('rename', (file, oldPath) => this.handleFileRename(file, oldPath))
+				);
+
+				// Start the sync interval
+				this.startSyncInterval();
+			}
+		}, 5000); // 5 second delay to let Obsidian fully load
 
 		console.log('Knosi Sync plugin loaded');
 	}
@@ -677,7 +679,7 @@ class KnosiSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Sync interval (minutes)')
-			.setDesc('How often to process the sync queue. Lower = more frequent syncs, higher = fewer API calls.')
+			.setDesc('How often to process the sync queue if auto-sync is enabled (1-60 minutes). Lower = more frequent syncs, higher = fewer API calls. (Default: 10 minutes)')
 			.addSlider(slider => slider
 				.setLimits(1, 60, 1)
 				.setValue(this.tempSettings.syncIntervalMinutes)
@@ -687,7 +689,7 @@ class KnosiSettingTab extends PluginSettingTab {
 				}))
 			.addExtraButton(button => button
 				.setIcon('reset')
-				.setTooltip('Reset to default (1 minute)')
+				.setTooltip('Reset to default (10 minutes)')
 				.onClick(() => {
 					this.tempSettings.syncIntervalMinutes = 1;
 					this.display();
@@ -716,15 +718,6 @@ class KnosiSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Verbose logging')
-			.setDesc('Log all sync operations to console. When disabled, only errors are logged.')
-			.addToggle(toggle => toggle
-				.setValue(this.tempSettings.verboseLogging)
-				.onChange((value) => {
-					this.tempSettings.verboseLogging = value;
-				}));
-
-		new Setting(containerEl)
 			.setName('Exclude patterns')
 			.setDesc('Paths/files to exclude (comma-separated). Supports directories (end with /), filenames, or glob patterns (*). Adding new patterns will delete matching files from server when saved.')
 			.addTextArea(text => {
@@ -738,8 +731,17 @@ class KnosiSettingTab extends PluginSettingTab {
 							.filter(s => s.length > 0);
 					});
 				text.inputEl.rows = 3;
-				text.inputEl.style.width = '100%';
+//				text.inputEl.style.width = '100%';
 			});
+
+		new Setting(containerEl)
+			.setName('Verbose logging')
+			.setDesc('Log all sync operations to console. When disabled, only errors are logged.')
+			.addToggle(toggle => toggle
+				.setValue(this.tempSettings.verboseLogging)
+				.onChange((value) => {
+					this.tempSettings.verboseLogging = value;
+				}));
 
 		// Save button
 		new Setting(containerEl)
