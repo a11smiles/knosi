@@ -8,6 +8,26 @@ Knosi is a self-hosted platform for indexing and chatting with your documents. U
 
 ---
 
+## Why Knosi?
+
+Existing knowledge base solutions fall short:
+
+- **Claude Projects** - No API for automation, manual uploads only, 10MB file size limit
+- **Khoj** - 10MB file size limit, complex auth requirements
+- **Commercial solutions** - Your data on their servers, expensive, vendor lock-in
+
+Knosi was built to solve these problems:
+
+- ✅ **No file size limits** - Index large theological PDFs, technical manuals, research papers
+- ✅ **Full automation** - API-first design with Obsidian plugin and filesystem watcher
+- ✅ **Complete control** - Self-hosted, your data never leaves your infrastructure
+- ✅ **Simple & reliable** - ~500 lines of Python, Docker deployment, PostgreSQL + pgvector
+- ✅ **Claude-powered** - Native PDF parsing handles locked/protected PDFs that other tools can't read
+
+Built by [Joshua](https://github.com/a11smiles) for indexing large theological documents for ministry work.
+
+---
+
 ## Quick Overview
 
 ```
@@ -142,13 +162,17 @@ See **[Server Deployment Guide](DEPLOYMENT.md)** for full configuration details.
 
 ### Embedding Models
 
-| Model | Dimensions | Accuracy | Best For |
-|-------|------------|----------|----------|
-| `all-MiniLM-L6-v2` (default) | 384 | 78.1% | General use, fast |
-| `BAAI/bge-base-en-v1.5` | 768 | 84.7% | High-quality retrieval |
-| `all-mpnet-base-v2` | 768 | Higher | Best quality, slower |
+| Model | Dimensions | Accuracy | Speed | Best For |
+|-------|------------|----------|-------|----------|
+| `all-MiniLM-L6-v2` (default) | 384 | 78.1% | Fast | General use, limited resources |
+| `BAAI/bge-base-en-v1.5` | 768 | 84.7% | Medium | High-quality English retrieval |
+| `intfloat/e5-base-v2` | 768 | 83.5% | Medium | Balanced performance |
+| `all-mpnet-base-v2` | 768 | Higher | Slower | Best quality |
+| `nomic-ai/nomic-embed-text-v1` | 768 | 86.2% | Slower | Multilingual, large-scale |
 
 ⚠️ **IMPORTANT:** Changing embedding models requires clearing the database and re-indexing documents. See [Server Deployment Guide](DEPLOYMENT.md) for details.
+
+**Recommended model for theological/scholarly documents:** `BAAI/bge-base-en-v1.5` (768 dims)
 
 ---
 
