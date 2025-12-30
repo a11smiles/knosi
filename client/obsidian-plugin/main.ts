@@ -769,6 +769,8 @@ class KnosiChatView extends ItemView {
 
 		// Simple markdown rendering
 		const lines = content.split('\n');
+		let previousWasHeader = false;
+
 		lines.forEach((line, index) => {
 			// Check for headers (## or ###)
 			const headerMatch = line.match(/^(#{2,3})\s+(.+)$/);
@@ -786,9 +788,13 @@ class KnosiChatView extends ItemView {
 						headerEl.appendText(part);
 					}
 				});
+				previousWasHeader = true;
 			} else if (line.trim()) {
-				// Regular line (skip empty lines)
-				if (index > 0) contentEl.createEl('br');
+				// Regular line with content
+				// Add line break before this line (unless it's the first line or follows a header)
+				if (index > 0 && !previousWasHeader) {
+					contentEl.createEl('br');
+				}
 
 				// Handle bold markdown
 				const parts = line.split(/\*\*(.+?)\*\*/g);
@@ -799,6 +805,17 @@ class KnosiChatView extends ItemView {
 						contentEl.appendText(part);
 					}
 				});
+				previousWasHeader = false;
+			} else if (!previousWasHeader) {
+				// Empty line - only render if previous wasn't a header
+				// This creates paragraph breaks between regular text
+				if (index > 0) {
+					contentEl.createEl('br');
+				}
+				previousWasHeader = false;
+			} else {
+				// Empty line after header - skip it
+				previousWasHeader = false;
 			}
 		});
 
