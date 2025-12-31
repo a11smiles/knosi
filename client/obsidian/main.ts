@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS: KnosiSettings = {
 	syncOnStartup: true,
 	syncIntervalMinutes: 10,
 	supportedExtensions: ['.md', '.txt', '.pdf', '.html', '.htm', '.org', '.rst', '.png', '.jpg', '.jpeg', '.gif', '.webp'],
-	excludePatterns: ['.trash/', 'Templates/'],
+	excludePatterns: ['Templates/'],
 	verboseLogging: false
 };
 
@@ -38,7 +38,7 @@ export default class KnosiSyncPlugin extends Plugin {
 	// Helper for verbose logging that respects user settings
 	private log(message: string) {
 		if (this.settings?.verboseLogging) {
-			console.warn(`[Knosi] ${message}`);
+			console.log(`[Knosi] ${message}`);
 		}
 	}
 
@@ -307,7 +307,15 @@ export default class KnosiSyncPlugin extends Plugin {
 	}
 
 	isExcluded(filePath: string): boolean {
-		// Check if file matches any exclusion pattern
+		// Always exclude .obsidian/ and .trash/ folders
+		const alwaysExcluded = ['.obsidian/', '.trash/'];
+		for (const folder of alwaysExcluded) {
+			if (filePath.startsWith(folder) || filePath.includes('/' + folder)) {
+				return true;
+			}
+		}
+
+		// Check if file matches any user-defined exclusion pattern
 		for (const pattern of this.settings.excludePatterns) {
 			if (!pattern.trim()) continue;
 
@@ -570,7 +578,7 @@ export default class KnosiSyncPlugin extends Plugin {
 			this.log(`Synced: ${file.path} (${result.status})`);
 
 		} catch (error) {
-			console.error(`Failed to sync ${file.path}:`, error);
+			console.error(`[Knosi] Failed to sync ${file.path}:`, error);
 			throw error;
 		}
 	}
@@ -594,7 +602,7 @@ export default class KnosiSyncPlugin extends Plugin {
 				this.log(`Deleted from index: ${path}`);
 			}
 		} catch (error) {
-			console.error(`Failed to delete ${path}:`, error);
+			console.error(`[Knosi] Failed to delete ${path}:`, error);
 			throw error;
 		}
 	}
@@ -961,7 +969,7 @@ class KnosiChatView extends ItemView {
 		} catch (error) {
 			loadingEl.remove();
 			this.addMessage('assistant', `Error: ${error.message}`);
-			console.error('Chat error:', error);
+			console.error('[Knosi] Chat error:', error);
 		}
 	}
 }
@@ -986,6 +994,7 @@ class KnosiSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Knosi')
+			.setClass('knosi-settings-h1')
 			.setHeading();
 
 		new Setting(containerEl)
@@ -1062,10 +1071,10 @@ class KnosiSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Exclude patterns')
-			.setDesc('Paths/files to exclude (comma-separated). Supports directories (end with /), filenames, or glob patterns (*). Adding new patterns will delete matching files from server when saved.')
+			.setDesc('Paths/files to exclude (comma-separated). Note: .obsidian/ and .trash/ are always excluded. Supports directories (end with /), filenames, or glob patterns (*). Adding new patterns will delete matching files from server when saved.')
 			.addTextArea(text => {
 				text
-					.setPlaceholder('.obsidian/, Templates/, *.tmp, **/*.backup')
+					.setPlaceholder('Templates/, *.tmp, **/*.backup')
 					.setValue(this.tempSettings.excludePatterns.join(', '))
 					.onChange((value) => {
 						this.tempSettings.excludePatterns = value
@@ -1097,6 +1106,7 @@ class KnosiSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Actions')
+			.setClass('knosi-settings-h3')
 			.setHeading();
 
 		new Setting(containerEl)

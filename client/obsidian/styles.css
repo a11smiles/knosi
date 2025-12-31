@@ -158,3 +158,33 @@
 .knosi-chat-send-button:active {
   opacity: 0.8;
 }
+
+.knosi-settings-h1 > .setting-item-info > .setting-item-name {
+    display: block;
+    --font-weight: var(--h1-weight);
+    font-variant: var(--h1-variant);
+    letter-spacing: var(--h1-letter-spacing);
+    line-height: var(--h1-line-height);
+    font-size: var(--h1-size);
+    color: var(--h1-color);
+    font-weight: var(--font-weight);
+    font-style: var(--h1-style);
+    font-family: var(--h1-font);
+    margin-block-start: var(--p-spacing);
+    margin-block-end: var(--p-spacing);
+}
+
+.knosi-settings-h3 > .setting-item-info > .setting-item-name {
+    display: block;
+    --font-weight: var(--h3-weight);
+    font-variant: var(--h3-variant);
+    letter-spacing: var(--h3-letter-spacing);
+    line-height: var(--h3-line-height);
+    font-size: var(--h3-size);
+    color: var(--h3-color);
+    font-weight: var(--font-weight);
+    font-style: var(--h3-style);
+    font-family: var(--h3-font);
+    margin-block-start: var(--p-spacing);
+    margin-block-end: var(--p-spacing);
+}
