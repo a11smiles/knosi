@@ -524,29 +524,66 @@ export default class KnosiSyncPlugin extends Plugin {
 				return;
 			}
 
-			const blob = new Blob([content]);
+			const blob = new Blob([content], { type: 'application/octet-stream' });
 
-			// Create form data
-			const formData = new FormData();
-			formData.append('file', blob, file.name);
-			formData.append('path', file.path);
-			formData.append('vault_name', this.app.vault.getName());
+			// Build multipart form data manually for requestUrl
+			const randomBoundaryString = crypto.randomUUID();
 
-			// Note: Using fetch here because requestUrl doesn't support FormData serialization
-			const response = await fetch(`${this.settings.serverUrl}/api/upload`, {
+			// Construct text fields (path and vault_name)
+			const textData = {
+				'path': file.path,
+				'vault_name': this.app.vault.getName()
+			};
+
+			let preString = '';
+			for (const key in textData) {
+				preString += `----${randomBoundaryString}\r\n`;
+				preString += `Content-Disposition: form-data; name="${key}"\r\n\r\n`;
+				preString += `${textData[key]}\r\n`;
+			}
+
+			// Construct file part headers
+			const fileHeaders = [
+				`----${randomBoundaryString}\r\n`,
+				`Content-Disposition: form-data; name="file"; filename="${file.name}"\r\n`,
+				`Content-Type: application/octet-stream\r\n`,
+				`\r\n`
+			].join('');
+
+			// Construct final boundary
+			const postString = `\r\n----${randomBoundaryString}--\r\n`;
+
+			// Encode strings to binary
+			const encoder = new TextEncoder();
+			const preStringEncoded = encoder.encode(preString);
+			const fileHeadersEncoded = encoder.encode(fileHeaders);
+			const postStringEncoded = encoder.encode(postString);
+
+			// Concatenate all parts into a single ArrayBuffer
+			const concatenatedBody = await new Blob([
+				preStringEncoded,
+				fileHeadersEncoded,
+				content,
+				postStringEncoded
+			]).arrayBuffer();
+
+			const response = await requestUrl({
+				url: `${this.settings.serverUrl}/api/upload`,
 				method: 'POST',
+				contentType: `multipart/form-data; boundary=----${randomBoundaryString}`,
 				headers: {
 					'X-API-Key': this.settings.apiKey
 				},
-				body: formData
+				body: concatenatedBody,
+				throw: false
 			});
 
-			if (!response.ok) {
-				const error = await response.json();
+			if (response.status >= 400) {
+				const error = response.json;
 				throw new Error(error.detail || `HTTP ${response.status}`);
 			}
 
-			const result = await response.json();
+			const result = response.json;
 			if (this.settings.verboseLogging) {
 				console.debug(`Synced: ${file.path} (${result.status})`);
 			}
