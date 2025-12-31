@@ -532,22 +532,21 @@ export default class KnosiSyncPlugin extends Plugin {
 			formData.append('path', file.path);
 			formData.append('vault_name', this.app.vault.getName());
 
-			const response = await requestUrl({
-				url: `${this.settings.serverUrl}/api/upload`,
+			// Note: Using fetch here because requestUrl doesn't support FormData serialization
+			const response = await fetch(`${this.settings.serverUrl}/api/upload`, {
 				method: 'POST',
 				headers: {
 					'X-API-Key': this.settings.apiKey
 				},
-				body: formData as any,
-				throw: false
+				body: formData
 			});
 
-			if (response.status >= 400) {
-				const error = response.json;
+			if (!response.ok) {
+				const error = await response.json();
 				throw new Error(error.detail || `HTTP ${response.status}`);
 			}
 
-			const result = response.json;
+			const result = await response.json();
 			if (this.settings.verboseLogging) {
 				console.debug(`Synced: ${file.path} (${result.status})`);
 			}
