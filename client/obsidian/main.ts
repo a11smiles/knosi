@@ -28,12 +28,19 @@ export default class KnosiSyncPlugin extends Plugin {
 	settings: KnosiSettings;
 	statusBarItem: HTMLElement;
 	syncInProgress: boolean = false;
-	
+
 	// Queue-based sync
 	pendingUploads: Set<string> = new Set();      // Files to upload
 	pendingDeletes: Set<string> = new Set();      // Files to delete
 	currentlyProcessing: Set<string> = new Set(); // Files being processed right now
 	syncIntervalId: number | null = null;
+
+	// Helper for verbose logging that respects user settings
+	private log(message: string) {
+		if (this.settings?.verboseLogging) {
+			console.debug(`[Knosi] ${message}`);
+		}
+	}
 
 	async onload() {
 		await this.loadSettings();
@@ -165,9 +172,7 @@ export default class KnosiSyncPlugin extends Plugin {
 			return;
 		}
 
-		if (this.settings.verboseLogging) {
-			console.debug(`Rescanning vault for new extensions: ${addedExtensions.join(', ')}`);
-		}
+		this.log(`Rescanning vault for new extensions: ${addedExtensions.join(', ')}`);
 		new Notice(`Rescanning vault for: ${addedExtensions.join(', ')}`);
 
 		// Find all files with the new extensions
@@ -183,9 +188,7 @@ export default class KnosiSyncPlugin extends Plugin {
 		}
 
 		if (queuedCount > 0) {
-			if (this.settings.verboseLogging) {
-				console.debug(`Queued ${queuedCount} files for sync`);
-			}
+			this.log(`Queued ${queuedCount} files for sync`);
 			new Notice(`Queued ${queuedCount} files for sync`);
 			this.updateStatusBar('pending');
 		} else {
@@ -201,9 +204,7 @@ export default class KnosiSyncPlugin extends Plugin {
 			return;
 		}
 
-		if (this.settings.verboseLogging) {
-			console.debug(`Rescanning vault for newly excluded patterns: ${addedPatterns.join(', ')}`);
-		}
+		this.log(`Rescanning vault for newly excluded patterns: ${addedPatterns.join(', ')}`);
 		new Notice(`Finding files to delete for: ${addedPatterns.join(', ')}`);
 
 		// Find all files that match the new exclusion patterns
@@ -254,9 +255,7 @@ export default class KnosiSyncPlugin extends Plugin {
 		}
 
 		if (queuedCount > 0) {
-			if (this.settings.verboseLogging) {
-				console.debug(`Queued ${queuedCount} files for deletion`);
-			}
+			this.log(`Queued ${queuedCount} files for deletion`);
 			new Notice(`Queued ${queuedCount} files for deletion from server`);
 			this.updateStatusBar('pending');
 		} else {
@@ -268,9 +267,7 @@ export default class KnosiSyncPlugin extends Plugin {
 		this.stopSyncInterval();
 		const intervalMs = this.settings.syncIntervalMinutes * 60 * 1000;
 		this.syncIntervalId = window.setInterval(() => this.processQueue(), intervalMs);
-		if (this.settings.verboseLogging) {
-			console.debug(`Sync interval started: every ${this.settings.syncIntervalMinutes} minute(s)`);
-		}
+		this.log(`Sync interval started: every ${this.settings.syncIntervalMinutes} minute(s)`);
 	}
 
 	stopSyncInterval() {
@@ -347,9 +344,7 @@ export default class KnosiSyncPlugin extends Plugin {
 
 		// Check if file is excluded
 		if (this.isExcluded(file.path)) {
-			if (this.settings.verboseLogging) {
-				console.debug(`Skipping excluded file: ${file.path}`);
-			}
+			this.log(`Skipping excluded file: ${file.path}`);
 			return;
 		}
 
@@ -360,9 +355,7 @@ export default class KnosiSyncPlugin extends Plugin {
 		this.pendingUploads.add(file.path);
 		this.updateStatusBar('pending');
 
-		if (this.settings.verboseLogging) {
-			console.debug(`Queued for sync: ${file.path} (${this.pendingUploads.size} in queue)`);
-		}
+		this.log(`Queued for sync: ${file.path} (${this.pendingUploads.size} in queue)`);
 	}
 
 	queueFileDelete(file: TAbstractFile) {
@@ -377,9 +370,7 @@ export default class KnosiSyncPlugin extends Plugin {
 		this.pendingDeletes.add(file.path);
 		this.updateStatusBar('pending');
 
-		if (this.settings.verboseLogging) {
-			console.debug(`Queued for delete: ${file.path}`);
-		}
+		this.log(`Queued for delete: ${file.path}`);
 	}
 
 	handleFileRename(file: TAbstractFile, oldPath: string) {
@@ -397,9 +388,7 @@ export default class KnosiSyncPlugin extends Plugin {
 
 	async processQueue() {
 		if (this.syncInProgress) {
-			if (this.settings.verboseLogging) {
-				console.debug('Sync already in progress, skipping');
-			}
+			this.log('Sync already in progress, skipping');
 			return;
 		}
 
@@ -414,9 +403,7 @@ export default class KnosiSyncPlugin extends Plugin {
 		this.currentlyProcessing = new Set([...uploadsToProcess, ...deletesToProcess]);
 		this.updateStatusBar('syncing', `${uploadsToProcess.size} files`);
 
-		if (this.settings.verboseLogging) {
-			console.debug(`Processing queue: ${uploadsToProcess.size} uploads, ${deletesToProcess.size} deletes`);
-		}
+		this.log(`Processing queue: ${uploadsToProcess.size} uploads, ${deletesToProcess.size} deletes`);
 
 		let uploaded = 0;
 		let deleted = 0;
@@ -475,9 +462,7 @@ export default class KnosiSyncPlugin extends Plugin {
 			this.updateStatusBar('idle');
 		}
 
-		if (this.settings.verboseLogging) {
-			console.debug(`Queue processed: ${uploaded} uploaded, ${deleted} deleted, ${errors} errors`);
-		}
+		this.log(`Queue processed: ${uploaded} uploaded, ${deleted} deleted, ${errors} errors`);
 	}
 
 	viewQueue() {
@@ -518,9 +503,7 @@ export default class KnosiSyncPlugin extends Plugin {
 
 			// Skip empty files
 			if (content.byteLength === 0) {
-				if (this.settings.verboseLogging) {
-					console.debug(`Skipping empty file: ${file.path}`);
-				}
+				this.log(`Skipping empty file: ${file.path}`);
 				return;
 			}
 
@@ -584,9 +567,7 @@ export default class KnosiSyncPlugin extends Plugin {
 			}
 
 			const result = response.json;
-			if (this.settings.verboseLogging) {
-				console.debug(`Synced: ${file.path} (${result.status})`);
-			}
+			this.log(`Synced: ${file.path} (${result.status})`);
 
 		} catch (error) {
 			console.error(`Failed to sync ${file.path}:`, error);
@@ -610,9 +591,7 @@ export default class KnosiSyncPlugin extends Plugin {
 			});
 
 			if (response.status < 400) {
-				if (this.settings.verboseLogging) {
-					console.debug(`Deleted from index: ${path}`);
-				}
+				this.log(`Deleted from index: ${path}`);
 			}
 		} catch (error) {
 			console.error(`Failed to delete ${path}:`, error);
